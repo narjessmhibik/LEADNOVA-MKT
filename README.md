@@ -70,7 +70,19 @@ Les clés API (Hunter, OpenRouter, Brevo) sont nécessaires pour l'enrichissemen
 docker-compose up -d
 ```
 
-### 4. Backend
+### 4. Restaurer les données de démonstration
+Un dump SQL (`backend/seed/leadpilot.sql`) contient un jeu de données complet
+(leads, campagnes, opportunités...). À importer une fois la base lancée :
+
+```bash
+# Via Docker (conteneur nommé leadpilot-db-1)
+docker exec -i leadpilot-db-1 psql -U leadpilot -d leadpilot_db < backend/seed/leadpilot.sql
+
+# Ou avec psql en local
+psql -U leadpilot -d leadpilot_db -f backend/seed/leadpilot.sql
+```
+
+### 5. Backend
 ```bash
 cd backend
 python -m venv venv
@@ -85,7 +97,7 @@ uvicorn app.main:app --reload
 ```
 API disponible sur **http://127.0.0.1:8000** · Documentation Swagger : **/docs**
 
-### 5. Worker Celery (tâches de fond : scraping, A/B, emails)
+### 6. Worker Celery (tâches de fond : scraping, A/B, emails)
 Dans un terminal séparé (venv activé) :
 ```bash
 cd backend
@@ -93,7 +105,7 @@ celery -A app.celery_app worker --loglevel=info --pool=solo   # --pool=solo requ
 celery -A app.celery_app beat   --loglevel=info               # tâches planifiées (autre terminal)
 ```
 
-### 6. Frontend
+### 7. Frontend
 ```bash
 cd frontend
 npm install
@@ -106,18 +118,21 @@ Application disponible sur **http://localhost:5173**
 ## Modèles Machine Learning
 
 Les modèles entraînés (`.pkl`) ne sont **pas versionnés** (trop volumineux pour git).
-Pour les (re)générer :
+Une fois les données restaurées (étape 4), les régénérer ainsi :
 
 ```bash
 cd backend
 
-# Lead scoring (XGBoost) + segmentation (K-Means)
+# Lead scoring (XGBoost) + segmentation (K-Means) — nécessite les données
 python train_model.py
 
-# ML Timing (Random Forest) — données simulées puis entraînement
+# ML Timing (Random Forest) — données simulées, aucune donnée requise
 python scripts/generate_timing_data.py
 python scripts/train_timing_model.py
 ```
+
+> Important : `train_model.py` s'appuie sur les leads en base. Restaurer le dump
+> (étape 4) **avant** de lancer l'entraînement, sinon il n'y a pas de données.
 
 ---
 
