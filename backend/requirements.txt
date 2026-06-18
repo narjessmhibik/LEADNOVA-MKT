@@ -1,0 +1,38 @@
+# ── API / Backend ──────────────────────────────
+fastapi
+uvicorn[standard]
+pydantic[email]
+python-dotenv
+
+# ── Base de données ────────────────────────────
+sqlalchemy[asyncio]
+asyncpg
+psycopg2-binary
+alembic
+
+# ── Authentification ───────────────────────────
+python-jose[cryptography]
+passlib[bcrypt]
+
+# ── Tâches asynchrones ─────────────────────────
+celery
+redis
+
+# ── Machine Learning ───────────────────────────
+scikit-learn
+xgboost
+numpy
+pandas
+joblib
+
+# ── Scraping ───────────────────────────────────
+playwright
+beautifulsoup4
+requests
+
+# ── Emails (Brevo) ─────────────────────────────
+sib-api-v3-sdk
+
+# ── Exports (Excel / PDF) ──────────────────────
+openpyxl
+reportlab

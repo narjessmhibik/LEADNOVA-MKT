@@ -1,0 +1,52 @@
+# Environnement
+.env
+backend/.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Modèles ML (trop lourds pour git)
+*.pkl
+*.joblib
+
+# Logs
+*.log
+backend/*.log
+backend/*_err.log
+backend/*_out.log
+
+# Node
+node_modules/
+package-lock.json
+
+# Build frontend
+frontend/dist/
+frontend/.env
+
+# Fichiers temporaires
+*.tmp
+*.bak
+unpacked_pfe/
+scraping/
+
+# Docker volumes
+backend/docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Donnees generees (regenerables via scripts)
+backend/data/*.csv
