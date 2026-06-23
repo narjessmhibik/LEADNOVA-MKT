@@ -50,3 +50,6 @@ backend/docker/
 
 # Donnees generees (regenerables via scripts)
 backend/data/*.csv
+
+# Celery beat scheduler state
+celerybeat-schedule*

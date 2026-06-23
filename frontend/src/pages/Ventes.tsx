@@ -44,17 +44,41 @@ export default function Ventes() {
   const [selected, setSelected]   = useState<any | null>(null)
   const [form, setForm]           = useState({
     title: '', company: '', value: '', stage: 'Prospection',
-    probability: 20, risk: false, notes: ''
+    probability: 20, risk: false, notes: '', lead_id: null as number | null
   })
+  const [companySuggestions, setCompanySuggestions] = useState<any[]>([])
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const searchCompanies = async (q: string) => {
+    if (q.length < 2) { setCompanySuggestions([]); return }
+    try {
+      const res = await API.get('/leads/', { params: { search: q, limit: 6 } })
+      setCompanySuggestions(res.data.items || [])
+    } catch { setCompanySuggestions([]) }
+  }
+
+  const pickCompany = (lead: any) => {
+    setForm(f => ({
+      ...f,
+      company: lead.company || '',
+      lead_id: lead.id,
+      title: f.title || `Projet ${lead.company || ''}`.trim(),
+    }))
+    setCompanySuggestions([])
+  }
+
+  const [modelInfo, setModelInfo] = useState<any>(null)
 
   const fetchAll = async () => {
     setLoading(true)
-    const [d, s] = await Promise.all([
+    const [d, s, m] = await Promise.all([
       API.get('/opportunities/').catch(() => ({ data: [] })),
       API.get('/opportunities/stats/summary').catch(() => ({ data: null })),
+      API.get('/opportunities/closing-model').catch(() => ({ data: null })),
     ])
     setDeals(d.data)
     setStats(s.data)
+    setModelInfo(m.data)
     setLoading(false)
   }
 
@@ -62,12 +86,20 @@ export default function Ventes() {
 
   const createDeal = async () => {
     if (!form.title) return
-    await API.post('/opportunities/', {
-      ...form, value: parseFloat(form.value) || 0
-    })
-    setShowModal(false)
-    setForm({ title: '', company: '', value: '', stage: 'Prospection', probability: 20, risk: false, notes: '' })
-    fetchAll()
+    setCreateError(null)
+    try {
+      await API.post('/opportunities/', {
+        title: form.title, company: form.company || null, lead_id: form.lead_id,
+        value: parseFloat(form.value) || 0, stage: form.stage,
+        probability: form.probability, risk: form.risk, notes: form.notes || null,
+      })
+      setShowModal(false)
+      setForm({ title: '', company: '', value: '', stage: 'Prospection', probability: 20, risk: false, notes: '', lead_id: null })
+      setCompanySuggestions([])
+      fetchAll()
+    } catch (e: any) {
+      setCreateError(e.response?.data?.detail || 'Erreur lors de la création du deal')
+    }
   }
 
   const deleteDeal = async (id: number) => {
@@ -78,15 +110,23 @@ export default function Ventes() {
   }
 
   const moveStage = async (id: number, newStage: string) => {
-    await API.patch(`/opportunities/${id}`, {
+    const res = await API.patch(`/opportunities/${id}`, {
       stage: newStage, probability: PROB_BY_STAGE[newStage] ?? 50
     })
-    setDeals(deals.map(d => d.id === id ? { ...d, stage: newStage, probability: PROB_BY_STAGE[newStage] } : d))
+    const mlProb = res.data?.ml_probability
+    setDeals(deals.map(d => d.id === id
+      ? { ...d, stage: newStage, probability: PROB_BY_STAGE[newStage], ml_probability: mlProb ?? d.ml_probability }
+      : d))
+    setSelected((s: any) => s && s.id === id
+      ? { ...s, stage: newStage, probability: PROB_BY_STAGE[newStage], ml_probability: mlProb ?? s.ml_probability }
+      : s)
   }
 
   const toggleRisk = async (id: number, risk: boolean) => {
-    await API.patch(`/opportunities/${id}`, { risk })
-    setDeals(deals.map(d => d.id === id ? { ...d, risk } : d))
+    const res = await API.patch(`/opportunities/${id}`, { risk })
+    const mlProb = res.data?.ml_probability
+    setDeals(deals.map(d => d.id === id ? { ...d, risk, ml_probability: mlProb ?? d.ml_probability } : d))
+    setSelected((s: any) => s && s.id === id ? { ...s, risk, ml_probability: mlProb ?? s.ml_probability } : s)
   }
 
   // Drag & Drop
@@ -119,10 +159,22 @@ export default function Ventes() {
                   value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="relative">
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-1.5">Entreprise</label>
-                  <input className="input" placeholder="TechCorp SAS"
-                    value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
+                  <input className="input" placeholder="Rechercher une société..."
+                    value={form.company}
+                    onChange={e => { setForm({ ...form, company: e.target.value, lead_id: null }); searchCompanies(e.target.value) }} />
+                  {companySuggestions.length > 0 && (
+                    <div className="absolute z-20 w-full bg-white border border-gray-100 rounded-xl shadow-lg mt-1 overflow-hidden">
+                      {companySuggestions.map(lead => (
+                        <div key={lead.id} onClick={() => pickCompany(lead)}
+                          className="flex items-center justify-between px-3 py-2 hover:bg-blue-50 cursor-pointer">
+                          <span className="text-sm font-medium text-gray-800 truncate">{lead.company}</span>
+                          <span className="text-[11px] text-gray-400 ml-2 flex-shrink-0">{lead.sector || ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-1.5">Valeur (TND)</label>
@@ -160,6 +212,9 @@ export default function Ventes() {
                 <span className="text-sm text-gray-600">Marquer comme deal à risque</span>
               </label>
             </div>
+            {createError && (
+              <p className="px-6 text-xs text-red-500 mb-2">{createError}</p>
+            )}
             <div className="px-6 pb-5 flex gap-3">
               <button onClick={() => setShowModal(false)} className="btn btn-secondary flex-1 justify-center">Annuler</button>
               <button onClick={createDeal} disabled={!form.title} className="btn btn-primary flex-1 justify-center disabled:opacity-40">
@@ -200,13 +255,14 @@ export default function Ventes() {
               </div>
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Probabilité</p>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Probabilité de closing (IA)</p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-gray-100 rounded-full h-2">
-                  <div className="h-2 rounded-full bg-blue-500 transition-all" style={{ width: `${selected.probability}%` }} />
+                  <div className="h-2 rounded-full bg-indigo-500 transition-all" style={{ width: `${selected.ml_probability ?? selected.probability}%` }} />
                 </div>
-                <span className="text-sm font-bold text-blue-600">{selected.probability}%</span>
+                <span className="text-sm font-bold text-indigo-600">{selected.ml_probability ?? selected.probability}%</span>
               </div>
+              <p className="text-[10px] text-gray-400 mt-1">Prédite par XGBoost selon l'étape, la valeur, le score du lead et l'ancienneté</p>
             </div>
             {selected.notes && (
               <div>
@@ -236,7 +292,20 @@ export default function Ventes() {
         <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Pipeline Commercial</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-gray-900">Pipeline Commercial</h1>
+                {modelInfo && (
+                  <span
+                    title={`Closing prédit par XGBoost · ${modelInfo.closed_deals}/${modelInfo.threshold} deals clôturés`}
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      modelInfo.source === 'real'
+                        ? 'bg-emerald-50 text-emerald-600'
+                        : 'bg-indigo-50 text-indigo-600'
+                    }`}>
+                    IA closing : {modelInfo.source === 'real' ? 'Données réelles' : 'Benchmarks'}
+                  </span>
+                )}
+              </div>
               <p className="text-[12px] text-gray-400 mt-0.5">Gérez vos opportunités en temps réel</p>
             </div>
             <div className="flex items-center gap-6">
@@ -338,9 +407,9 @@ export default function Ventes() {
                           {deal.stage === 'Gagné' && <CheckCircle size={12} className="text-green-500" />}
                         </div>
                         <div className="mt-2 bg-gray-100 rounded-full h-1">
-                          <div className="h-1 rounded-full bg-blue-400 transition-all" style={{ width: `${deal.probability}%` }} />
+                          <div className="h-1 rounded-full bg-indigo-500 transition-all" style={{ width: `${deal.ml_probability ?? deal.probability}%` }} />
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">{deal.probability}% probabilité</p>
+                        <p className="text-[10px] text-gray-400 mt-1">{deal.ml_probability ?? deal.probability}% closing (IA)</p>
                       </div>
                     ))}
                   </div>
@@ -382,9 +451,9 @@ export default function Ventes() {
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
                             <div className="w-16 bg-gray-100 rounded-full h-1.5">
-                              <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${d.probability}%` }} />
+                              <div className="h-1.5 rounded-full bg-indigo-500" style={{ width: `${d.ml_probability ?? d.probability}%` }} />
                             </div>
-                            <span className="text-xs text-gray-500">{d.probability}%</span>
+                            <span className="text-xs text-gray-500">{d.ml_probability ?? d.probability}%</span>
                           </div>
                         </td>
                         <td className="px-5 py-3.5">

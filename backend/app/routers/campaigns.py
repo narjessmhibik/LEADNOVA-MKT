@@ -392,10 +392,9 @@ async def send_manual_email(data: dict, db: AsyncSession = Depends(get_db)):
     if not sent:
         raise HTTPException(status_code=500, detail="Erreur envoi Brevo")
 
-    # Mettre à jour le lead avec l'email envoyé
+    # Mettre à jour le lead avec l'email envoyé (envoi manuel : pas de test A/B)
     lead_db.email_sent    = True
     lead_db.email_sent_at = datetime.utcnow()
-    lead_db.ab_version    = "A"
     lead_db.email_subject_a = email["subject"]
     lead_db.email_body_a    = email["body"]
     await db.commit()

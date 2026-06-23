@@ -327,11 +327,14 @@ def run_scraping_job(job_id: int):
         new_lead_ids = [l.id for l in new_leads_objs]
         logger.info(f"[SCRAPING] {inserted} leads insérés en base (IDs: {new_lead_ids})")
 
-        # 5. Marquer le job comme terminé
-        job.status          = "termine"
-        job.finished_at     = datetime.utcnow()
-        job.leads_collected = inserted
-        job.success_rate    = 100.0 if inserted > 0 else 0.0
+        # 5. Marquer le job comme terminé (update direct par id pour éviter
+        #    une instance expirée par les commits précédents)
+        db.query(ScrapingJob).filter(ScrapingJob.id == job_id).update({
+            "status": "termine",
+            "finished_at": datetime.utcnow(),
+            "leads_collected": inserted,
+            "success_rate": 100.0 if inserted > 0 else 0.0,
+        })
         db.commit()
         logger.info(f"[SCRAPING] Job {job_id} terminé — {inserted} leads")
 
@@ -367,6 +370,13 @@ def run_scraping_job(job_id: int):
         return {"job_id": job_id, "error": str(e)}
     finally:
         db.close()
+
+
+@celery_app.task(name="app.tasks.retrain_closing_model")
+def retrain_closing_model():
+    """Réentraîne le modèle de closing sur les vrais deals clôturés si le seuil est atteint."""
+    from app.closing_retrain import retrain_closing_on_real
+    return retrain_closing_on_real()
 
 
 # SÉLECTION AUTOMATIQUE DU GAGNANT A/B APRÈS 24H

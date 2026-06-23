@@ -240,24 +240,36 @@ def _scrape_google_maps_playwright(keywords, location, sector, max_leads):
                 except Exception:
                     break
 
-            listings = page.locator('//a[contains(@href, "https://www.google.com/maps/place")]').all()[:max_leads]
-            listings = [l.locator("xpath=..") for l in listings]
-            logger.info(f"[Google Maps] {len(listings)} listings à traiter")
-
-            for idx, listing in enumerate(listings):
+            place_links = page.locator('//a[contains(@href, "https://www.google.com/maps/place")]').all()[:max_leads]
+            # Capturer le nom via aria-label AVANT de cliquer (fiable)
+            entries = []
+            for a in place_links:
                 try:
-                    listing.click()
-                    # Attendre que le panneau détail charge (h1 ≠ "Résultats")
-                    name = ''
+                    aria = (a.get_attribute("aria-label") or "").strip()
+                except Exception:
+                    aria = ""
+                entries.append((a, aria))
+            logger.info(f"[Google Maps] {len(entries)} listings à traiter")
+
+            for idx, (link, aria_name) in enumerate(entries):
+                try:
+                    name = aria_name
+                    # Ouvrir le détail et ATTENDRE que le panneau soit chargé
+                    # (essentiel pour récupérer le site web et le téléphone)
                     try:
-                        for _ in range(15):
-                            page.wait_for_timeout(800)
-                            h1s = page.locator('h1')
-                            if h1s.count() > 0:
-                                candidate = h1s.first.inner_text(timeout=2000).strip()
-                                if candidate and candidate.lower() not in ('résultats', 'resultats', 'results', ''):
+                        link.click()
+                        # attendre le titre du panneau détail (panneau prêt)
+                        try:
+                            page.wait_for_selector('//h1[contains(@class,"DUwDvf")]', timeout=8000)
+                        except Exception:
+                            page.wait_for_timeout(2500)
+                        page.wait_for_timeout(800)
+                        if not name:
+                            h1 = page.locator('//h1[contains(@class,"DUwDvf")]')
+                            if h1.count() > 0:
+                                candidate = h1.first.inner_text(timeout=2000).strip()
+                                if candidate.lower() not in ('résultats', 'resultats', 'results', ''):
                                     name = candidate
-                                    break
                     except Exception:
                         pass
 

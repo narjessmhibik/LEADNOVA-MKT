@@ -98,8 +98,9 @@ export default function Scraping() {
   const createJob = async () => {
     if (!form.name.trim()) return
     setSubmitting(true)
+    const maxLeads = Math.min(500, Math.max(1, Number(form.maxLeads) || 1))
     try {
-      await API.post('/scraping/jobs', form)
+      await API.post('/scraping/jobs', { ...form, maxLeads })
       setAlert({ type: 'success', msg: `Job "${form.name}" créé avec succès` })
       setShowModal(false)
       setForm({ name: '', source: 'Google Maps', keywords: '', location: '', sector: '', maxLeads: 100 })
@@ -228,13 +229,14 @@ export default function Scraping() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    Max leads : <span className="text-blue-600 font-extrabold">{form.maxLeads}</span>
+                    Nombre de leads à scraper
                   </label>
-                  <input type="range" min={1} max={500} step={1} value={form.maxLeads}
+                  <input type="number" min={1} max={500} value={form.maxLeads}
                     onChange={e => setForm({ ...form, maxLeads: Number(e.target.value) })}
-                    className="w-full accent-blue-600"
+                    placeholder="Ex : 100"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
                   />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1"><span>1</span><span>500</span></div>
+                  <p className="text-xs text-gray-400 mt-1">Entre 1 et 500</p>
                 </div>
               </div>
               <div className="px-6 pb-5 flex gap-3">

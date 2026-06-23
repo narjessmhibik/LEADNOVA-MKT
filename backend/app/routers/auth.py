@@ -1,15 +1,30 @@
-﻿from fastapi import APIRouter, Depends, HTTPException
+﻿from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, Token, UserResponse
-from app.services.auth_service import hash_password, verify_password, create_access_token
+from app.services.auth_service import hash_password, verify_password, create_access_token, decode_token
 import uuid, os, sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 
 router = APIRouter()
+
+
+async def get_current_user(authorization: str = Header(None), db: AsyncSession = Depends(get_db)) -> User:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    try:
+        payload = decode_token(authorization.split(" ", 1)[1])
+        email = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token invalide")
+    res = await db.execute(select(User).where(User.email == email))
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=401, detail="Utilisateur introuvable")
+    return user
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 BACKEND_URL  = os.getenv("BACKEND_URL",  "http://localhost:8000")
@@ -96,7 +111,7 @@ async def verify_email(token: str, redirect: str = None, db: AsyncSession = Depe
     </body></html>""")
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
@@ -105,4 +120,20 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email non confirmé — vérifiez votre boîte mail")
     token = create_access_token({"sub": user.email})
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token, "token_type": "bearer",
+        "full_name": user.full_name or "", "email": user.email,
+    }
+
+
+@router.get("/me")
+async def get_me(user: User = Depends(get_current_user)):
+    return {"email": user.email, "full_name": user.full_name or ""}
+
+
+@router.put("/me")
+async def update_me(data: dict, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if data.get("full_name") is not None:
+        user.full_name = data["full_name"]
+    await db.commit()
+    return {"email": user.email, "full_name": user.full_name or ""}

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict qkfpkMRxrWsSKBctSacvWXfYuy0RlsB8f3tI7a7LxpsUzmQEyTvQhm6NQUwHmYa
+\restrict YTanAKWksDOu8PbDNrpinW2LB4FIlHama2ggMHRekwbrSocFcK29zteoMI9y0Dz
 
 -- Dumped from database version 15.17 (Debian 15.17-1.pgdg13+1)
 -- Dumped by pg_dump version 15.17 (Debian 15.17-1.pgdg13+1)
@@ -255,7 +255,10 @@ CREATE TABLE public.opportunities (
     stage character varying,
     probability double precision,
     expected_close timestamp without time zone,
-    created_at timestamp without time zone
+    created_at timestamp without time zone,
+    company character varying,
+    risk boolean DEFAULT false,
+    notes character varying
 );
 
 
@@ -9638,7 +9641,27 @@ COPY public.notifications (id, type, title, message, is_read, created_at) FROM s
 -- Data for Name: opportunities; Type: TABLE DATA; Schema: public; Owner: leadpilot
 --
 
-COPY public.opportunities (id, title, lead_id, value, stage, probability, expected_close, created_at) FROM stdin;
+COPY public.opportunities (id, title, lead_id, value, stage, probability, expected_close, created_at, company, risk, notes) FROM stdin;
+1	Projet Vneuron	735	59051	Qualification	40	2026-07-07 23:22:31.860513	2026-05-13 05:33:43.88968	Vneuron	f	\N
+2	Projet Instadeep	1313	73020	Proposition	60	2026-07-07 13:22:59.915641	2026-05-20 13:53:09.182799	Instadeep	f	\N
+3	Projet Startup Village Charguia	1160	60662	Négociation	80	2026-07-03 17:14:38.757804	2026-06-04 21:39:10.098488	Startup Village Charguia	f	\N
+4	Projet Softverse	1146	64112	Gagné	100	2026-07-09 22:11:25.521839	2026-06-16 07:58:41.130424	Softverse	f	\N
+5	Projet Genesis , Digital Production Outsourcing Agency	59	38515	Prospection	20	2026-07-25 18:10:11.976924	2026-05-11 20:29:18.807958	Genesis , Digital Production Outsourcing Agency	f	\N
+6	Projet 24-7 Digital Design	321	6925	Qualification	40	2026-09-02 04:56:32.830368	2026-06-09 16:05:06.973646	24-7 Digital Design	f	\N
+7	Projet Ibcomprod	43	22716	Proposition	60	2026-08-02 17:22:43.589172	2026-06-08 10:36:07.221923	Ibcomprod	t	\N
+8	Projet Securas Technologies	1206	63521	Négociation	80	2026-09-09 00:29:19.138737	2026-05-20 11:41:10.465577	Securas Technologies	f	\N
+9	Projet Digia - Agence Digital Marketing Tunisie	181	12499	Gagné	100	2026-08-04 08:36:50.357693	2026-05-11 16:27:22.172243	Digia - Agence Digital Marketing Tunisie	f	\N
+10	Projet Smoft Erp	1287	58090	Prospection	20	2026-09-04 18:10:38.490672	2026-06-08 06:29:56.509272	Smoft Erp	f	\N
+11	Projet Cloudshift	1246	31967	Qualification	40	2026-07-11 01:20:06.775164	2026-05-25 23:22:32.51009	Cloudshift	f	\N
+12	Projet Deyma	5400	16331	Proposition	60	2026-07-20 11:45:09.615641	2026-06-07 01:53:09.261282	Deyma	f	\N
+13	Projet Megasoft Erp Tunisie Pilotez Votre Entreprise Avec Efficacité	1288	42907	Négociation	80	2026-08-19 07:03:18.01607	2026-06-07 17:00:36.38818	Megasoft Erp Tunisie Pilotez Votre Entreprise Avec Efficacité	f	\N
+14	Projet Digital Bath Agence Web	292	67126	Gagné	100	2026-06-30 19:25:46.995017	2026-05-10 16:14:57.391344	Digital Bath Agence Web	t	\N
+15	Projet Altair Solutions	1130	66528	Prospection	20	2026-07-06 21:18:06.950524	2026-05-27 07:36:43.62568	Altair Solutions	f	\N
+16	Projet Secureit	2353	27510	Qualification	40	2026-08-19 19:19:33.317476	2026-05-31 00:40:58.72274	Secureit	f	\N
+17	Projet It Cybersec Expert	1211	14744	Proposition	60	2026-08-29 12:50:00.223153	2026-05-27 21:13:19.809072	It Cybersec Expert	f	\N
+18	Projet Cynapcom Consulting	1003	53300	Négociation	80	2026-07-05 11:28:04.75973	2026-06-13 18:21:37.490584	Cynapcom Consulting	f	\N
+19	Projet Spacenet Charguia	729	27744	Gagné	100	2026-07-20 09:09:32.415825	2026-05-18 09:08:40.384048	Spacenet Charguia	f	\N
+20	Projet Welec	3953	76770	Prospection	20	2026-08-28 09:33:51.024596	2026-05-24 16:27:26.171577	Welec	f	\N
 \.
 
 
@@ -9697,7 +9720,7 @@ SELECT pg_catalog.setval('public.notifications_id_seq', 1, false);
 -- Name: opportunities_id_seq; Type: SEQUENCE SET; Schema: public; Owner: leadpilot
 --
 
-SELECT pg_catalog.setval('public.opportunities_id_seq', 1, false);
+SELECT pg_catalog.setval('public.opportunities_id_seq', 20, true);
 
 
 --
@@ -9860,5 +9883,5 @@ ALTER TABLE ONLY public.opportunities
 -- PostgreSQL database dump complete
 --
 
-\unrestrict qkfpkMRxrWsSKBctSacvWXfYuy0RlsB8f3tI7a7LxpsUzmQEyTvQhm6NQUwHmYa
+\unrestrict YTanAKWksDOu8PbDNrpinW2LB4FIlHama2ggMHRekwbrSocFcK29zteoMI9y0Dz
 

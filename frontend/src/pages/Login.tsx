@@ -40,6 +40,13 @@ export default function Login() {
         const storage = remember ? localStorage : sessionStorage
         storage.setItem('token', res.data.access_token)
         storage.setItem('email', email)
+        // Stocker le nom pour la sidebar / le profil
+        const fullName = (res.data.full_name || '').trim()
+        if (fullName) {
+          const parts = fullName.split(' ')
+          storage.setItem('prenom', parts[0] || '')
+          storage.setItem('nom', parts.slice(1).join(' ') || '')
+        }
         // Vider l'autre storage pour éviter les conflits
         const other = remember ? sessionStorage : localStorage
         other.removeItem('token')

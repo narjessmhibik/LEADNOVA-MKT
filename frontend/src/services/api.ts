@@ -46,6 +46,9 @@ export const updateLeadStatus = (id: number, status: string) =>
 export const createLead = (data: object) =>
   API.post('/leads/', data)
 
+export const convertLeadToOpportunity = (id: number) =>
+  API.post(`/opportunities/convert/${id}`)
+
 // Campaigns
 export const getCampaigns = () => API.get('/campaigns/')
 export const createCampaign = (data: object) => API.post('/campaigns/', data)

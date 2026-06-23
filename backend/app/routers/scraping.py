@@ -78,12 +78,16 @@ async def start_job(job_id: int, db: AsyncSession = Depends(get_db)):
     if job.status == "actif":
         raise HTTPException(status_code=400, detail="Job déjà en cours")
 
-    # Tenter Celery d'abord
+    # Utiliser Celery uniquement si un worker répond, sinon exécution directe
     try:
+        from app.celery_app import celery_app
         from app.tasks import run_scraping_job
-        task = run_scraping_job.delay(job_id)
-        logger.info(f"Tâche Celery lancée pour job {job_id} : task_id={task.id}")
-        return {"message": "Scraping lancé via Celery", "job_id": job_id, "task_id": task.id, "mode": "celery"}
+        replies = celery_app.control.ping(timeout=1.0)
+        if replies:
+            task = run_scraping_job.delay(job_id)
+            logger.info(f"Tâche Celery lancée pour job {job_id} : task_id={task.id}")
+            return {"message": "Scraping lancé via Celery", "job_id": job_id, "task_id": task.id, "mode": "celery"}
+        logger.warning("Aucun worker Celery actif — mode direct activé")
     except Exception as celery_err:
         logger.warning(f"Celery indisponible ({celery_err}) — mode direct activé")
 

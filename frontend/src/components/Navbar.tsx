@@ -57,17 +57,17 @@ export default function Sidebar() {
 
   return (
     <>
-    <NotificationBell />
     <aside className="flex h-screen w-56 flex-col fixed left-0 top-0 z-30"
       style={{ background: 'linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%)' }}>
 
       {/* Logo */}
       <div className="px-5 pt-6 pb-5 border-b border-white/10">
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-between">
           <h1 className="text-[22px] font-extrabold tracking-tight"
             style={{ background: 'linear-gradient(135deg, #fff 40%, #93c5fd)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             LeadPilot
           </h1>
+          <NotificationBell />
         </div>
       </div>
 

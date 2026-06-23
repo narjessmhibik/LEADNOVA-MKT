@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Sidebar from '../components/Navbar'
-import { getLeads, updateLeadStatus } from '../services/api'
-import { Search, Filter, ChevronLeft, ChevronRight, Mail, Phone, Globe } from 'lucide-react'
+import { getLeads, updateLeadStatus, convertLeadToOpportunity } from '../services/api'
+import { Search, Filter, ChevronLeft, ChevronRight, Mail, Phone, Globe, ArrowRightCircle, Check } from 'lucide-react'
 
 interface Lead {
   id: number
@@ -98,6 +98,25 @@ export default function Leads() {
     fetchLeads()
   }
 
+  const [converting, setConverting] = useState<number | null>(null)
+  const [converted, setConverted] = useState<number[]>([])
+  const [convertMsg, setConvertMsg] = useState<string | null>(null)
+
+  const handleConvert = async (lead: Lead) => {
+    setConverting(lead.id)
+    try {
+      const res = await convertLeadToOpportunity(lead.id)
+      setConverted(prev => [...prev, lead.id])
+      setConvertMsg(`${lead.company || 'Lead'} converti en opportunité (${res.data.value.toLocaleString('fr')} TND)`)
+      setTimeout(() => setConvertMsg(null), 4000)
+    } catch (e: any) {
+      setConvertMsg(e.response?.data?.detail || 'Erreur lors de la conversion')
+      setTimeout(() => setConvertMsg(null), 4000)
+    } finally {
+      setConverting(null)
+    }
+  }
+
   const scoreColor = (score: number | null) => {
     if (!score) return 'text-gray-400'
     if (score >= 66) return 'text-red-600 font-bold'
@@ -108,6 +127,15 @@ export default function Leads() {
   return (
     <div className="flex h-screen bg-gray-100">
       <Sidebar />
+
+      {/* Toast conversion */}
+      {convertMsg && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-white border border-indigo-200 shadow-lg rounded-xl px-4 py-3 flex items-center gap-2 text-sm font-medium text-gray-800 animate-fade-in">
+          <ArrowRightCircle size={16} className="text-indigo-500" />
+          {convertMsg}
+        </div>
+      )}
+
       <div className="ml-52 flex-1 overflow-auto min-w-0">
 
         {/* Header */}
@@ -222,12 +250,13 @@ export default function Leads() {
                       <th className="p-3 text-left text-gray-500 font-medium">Score</th>
                       <th className="p-3 text-left text-gray-500 font-medium">Joignabilité</th>
                       <th className="p-3 text-left text-gray-500 font-medium">Statut</th>
+                      <th className="p-3 text-left text-gray-500 font-medium">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data?.items.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center py-16 text-gray-400">
+                        <td colSpan={9} className="text-center py-16 text-gray-400">
                           Aucun lead trouvé
                         </td>
                       </tr>
@@ -309,6 +338,25 @@ export default function Leads() {
                               <option value="converti">Converti</option>
                               <option value="perdu">Perdu</option>
                             </select>
+                          </td>
+
+                          {/* Action : conversion en opportunité */}
+                          <td className="p-3">
+                            {converted.includes(lead.id) || lead.status === 'converti' ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-purple-600 font-medium">
+                                <Check size={13} /> Converti
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleConvert(lead)}
+                                disabled={converting === lead.id}
+                                title="Convertir ce lead en opportunité (pipeline Sales)"
+                                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+                              >
+                                <ArrowRightCircle size={13} />
+                                {converting === lead.id ? '...' : 'Convertir'}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))
