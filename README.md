@@ -113,6 +113,12 @@ npm run dev
 ```
 Application disponible sur **http://localhost:5173**
 
+> URL du backend : le frontend cible `http://127.0.0.1:8000` par défaut.
+> Pour la changer (ex: accès réseau), créer `frontend/.env` :
+> ```
+> VITE_API_URL=http://127.0.0.1:8000
+> ```
+
 ---
 
 ## Modèles Machine Learning
@@ -129,10 +135,16 @@ python train_model.py
 # ML Timing (Random Forest) — données simulées, aucune donnée requise
 python scripts/generate_timing_data.py
 python scripts/train_timing_model.py
+
+# Probabilité de closing des deals (XGBoost) — données simulées
+python scripts/train_closing_model.py
 ```
 
 > Important : `train_model.py` s'appuie sur les leads en base. Restaurer le dump
 > (étape 4) **avant** de lancer l'entraînement, sinon il n'y a pas de données.
+
+Les modèles ML (scoring, timing, closing) se réentraînent automatiquement sur les
+données réelles dès qu'un seuil est atteint (via Celery).
 
 ---
 
