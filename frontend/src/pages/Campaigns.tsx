@@ -10,7 +10,7 @@ import {
   ArrowRight, Filter, Eye, Brain, TrendingUp
 } from 'lucide-react'
 
-const API = axios.create({ baseURL: 'http://127.0.0.1:8000' })
+const API = axios.create({ baseURL: (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000') })
 API.interceptors.request.use(c => {
   const t = localStorage.getItem('token')
   if (t) c.headers.Authorization = `Bearer ${t}`

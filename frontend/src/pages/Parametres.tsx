@@ -69,7 +69,7 @@ export default function Parametres() {
     // Tentative API (non bloquante)
     try {
       const token = localStorage.getItem('token')
-      await fetch('http://127.0.0.1:8000/auth/me', {
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/auth/me`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ full_name: `${form.prenom} ${form.nom}`, email: form.email }),

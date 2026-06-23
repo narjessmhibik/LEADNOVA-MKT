@@ -18,7 +18,8 @@ app = FastAPI(title="LeadPilot API", version="1.0", lifespan=lifespan)
 # CORS pour permettre au frontend de communiquer avec le backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    # Autorise localhost ET les IP du réseau local (ex: téléphone sur le même WiFi)
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):5173",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

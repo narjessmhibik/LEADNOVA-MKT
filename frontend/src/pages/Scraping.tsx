@@ -6,7 +6,7 @@ import {
   AlertCircle, Loader, MapPin, Search, Building2, TrendingUp
 } from 'lucide-react'
 
-const API = axios.create({ baseURL: 'http://127.0.0.1:8000' })
+const API = axios.create({ baseURL: (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000') })
 API.interceptors.request.use(c => {
   const t = localStorage.getItem('token')
   if (t) c.headers.Authorization = `Bearer ${t}`
@@ -84,7 +84,7 @@ export default function Scraping() {
     if (!confirm('Supprimer ce lead ?')) return
     setDeletingId(id)
     try {
-      await axios.delete(`http://127.0.0.1:8000/leads/${id}`, {
+      await axios.delete(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/leads/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       })
       setRecentLeads(prev => prev.filter(l => l.id !== id))
@@ -189,7 +189,7 @@ export default function Scraping() {
                               const fd = new FormData()
                               fd.append('file', csvFile)
                               try {
-                                await axios.post('http://127.0.0.1:8000/scraping/upload-csv', fd, {
+                                await axios.post(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/scraping/upload-csv`, fd, {
                                   headers: { Authorization: `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}` }
                                 })
                                 setCsvUploaded(true)

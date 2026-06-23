@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 
-const API = axios.create({ baseURL: 'http://127.0.0.1:8000' })
+const API = axios.create({ baseURL: (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000') })
 API.interceptors.request.use(c => {
   const t = localStorage.getItem('token') || sessionStorage.getItem('token')
   if (t) c.headers.Authorization = `Bearer ${t}`
@@ -74,7 +74,7 @@ export default function Rapports() {
     setExporting('excel')
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-      const response = await fetch('http://127.0.0.1:8000/leads/export/excel', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/leads/export/excel`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!response.ok) throw new Error('Export échoué')
@@ -96,7 +96,7 @@ export default function Rapports() {
     setExporting('pdf')
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-      const response = await fetch('http://127.0.0.1:8000/leads/export/report-pdf', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/leads/export/report-pdf`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!response.ok) throw new Error('Export échoué')
