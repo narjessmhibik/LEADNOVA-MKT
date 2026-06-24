@@ -141,15 +141,13 @@ def _geocode(city: str):
             logger.info(f"[Geocode] '{city}' {coords} (cache local)")
             return coords
 
-    # Sinon appel Nominatim avec ville + Tunisie pour éviter ambiguïté
+    # Géocodage MONDIAL via Nominatim (plus de forçage Tunisie)
     try:
         session = requests.Session()
         session.trust_env = True
-        query = city if "tunisi" in city_lower else f"{city}, Tunisia"
         r = session.get(
             "https://nominatim.openstreetmap.org/search",
-            params={"q": query, "format": "json", "limit": 1,
-                    "countrycodes": "tn"},  # forcer Tunisie
+            params={"q": city, "format": "json", "limit": 1},
             headers={"User-Agent": "LeadPilot/1.0"},
             timeout=10,
         )
@@ -160,8 +158,8 @@ def _geocode(city: str):
             return lat, lon
     except Exception as e:
         logger.warning(f"Geocoding échoué pour '{city}': {e}")
-    logger.info(f"[Geocode] Fallback Tunis pour '{city}'")
-    return 36.8190, 10.1658  # Tunis fallback
+    logger.info(f"[Geocode] '{city}' introuvable — fallback Tunis")
+    return 36.8190, 10.1658  # fallback ultime si géocodage échoue
 
 def _get_tags(keywords, sector):
     tags = []
@@ -202,7 +200,10 @@ def _scrape_google_maps_playwright(keywords, location, sector, max_leads):
         logger.warning("[Google Maps] Playwright non installé fallback Overpass")
         return _scrape_overpass(keywords, location, sector, max_leads)
 
-    search_query = f"{keywords or sector or 'entreprises'} {location or 'Tunis'}"
+    # La recherche combine mots-clés + secteur + localisation
+    search_query = " ".join(p for p in [keywords or "", sector or "", location or ""] if p).strip()
+    if not search_query:
+        search_query = "entreprises"
     logger.info(f"[Google Maps] Playwright search: {search_query}")
     leads = []
 
@@ -423,6 +424,10 @@ def _gm_detect_sector(place_type: str) -> str:
     if not place_type:
         return "Services aux entreprises"
     pt = place_type.lower()
+    if any(x in pt for x in ["musée", "museum", "galerie", "gallery", "monument",
+                              "théâtre", "theatre", "culturel", "culture", "art",
+                              "patrimoine", "exposition", "bibliothèque"]):
+        return "Culture & Musées"
     if any(x in pt for x in ["restaurant", "café", "hôtel", "pizzeria", "traiteur"]):
         return "Restauration & Hôtellerie"
     if any(x in pt for x in ["pharmacie", "médecin", "clinique", "hôpital", "dentiste"]):

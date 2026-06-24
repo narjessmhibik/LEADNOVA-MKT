@@ -398,7 +398,7 @@ export default function Campaigns() {
                         setForm({ ...form, sector: e.target.value })
                         fetchTiming(form.segment, e.target.value)
                       }}>
-                      {['','Informatique & Tech','Finance & Comptabilité','Santé','Immobilier','Construction & BTP','Transport & Logistique','Education & Formation','Restauration & Hôtellerie','Industrie & Production','Commerce & Distribution','Services aux entreprises','Agriculture & Alimentaire','Energie & Environnement','Juridique','Marketing & Communication'].map(o => (
+                      {['','Culture & Musées','Informatique & Tech','Finance & Comptabilité','Santé','Immobilier','Construction & BTP','Transport & Logistique','Education & Formation','Restauration & Hôtellerie','Industrie & Production','Commerce & Distribution','Services aux entreprises','Agriculture & Alimentaire','Energie & Environnement','Juridique','Marketing & Communication'].map(o => (
                         <option key={o} value={o}>{o || 'Tous'}</option>
                       ))}
                     </select>

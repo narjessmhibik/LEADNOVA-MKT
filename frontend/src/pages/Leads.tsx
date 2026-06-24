@@ -45,7 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const SECTORS = [
-  'Informatique & Tech', 'Finance & Comptabilité', 'Santé', 'Immobilier',
+  'Culture & Musées', 'Informatique & Tech', 'Finance & Comptabilité', 'Santé', 'Immobilier',
   'Construction & BTP', 'Transport & Logistique', 'Education & Formation',
   'Restauration & Hôtellerie', 'Industrie & Production', 'Commerce & Distribution',
   'Services aux entreprises', 'Agriculture & Alimentaire', 'Energie & Environnement',

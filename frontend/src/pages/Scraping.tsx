@@ -35,7 +35,7 @@ const SEGMENT_COLORS: Record<string, string> = {
 }
 
 const SECTORS = [
-  'Informatique & Tech', 'Finance & Comptabilité', 'Santé', 'Immobilier',
+  'Culture & Musées', 'Informatique & Tech', 'Finance & Comptabilité', 'Santé', 'Immobilier',
   'Construction & BTP', 'Transport & Logistique', 'Education & Formation',
   'Restauration & Hôtellerie', 'Industrie & Production', 'Commerce & Distribution',
   'Services aux entreprises', 'Agriculture & Alimentaire', 'Energie & Environnement',
@@ -222,10 +222,19 @@ export default function Scraping() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Localisation</label>
                   <input type="text"
-                    placeholder="Ex: Tunis, Sfax, Sousse..."
+                    placeholder="Ex: Tunis, Paris, Lyon, Madrid..."
                     value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Secteur</label>
+                  <select
+                    value={form.sector} onChange={e => setForm({ ...form, sector: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400">
+                    <option value="">Tous les secteurs</option>
+                    {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">

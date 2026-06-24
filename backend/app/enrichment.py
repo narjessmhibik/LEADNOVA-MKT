@@ -72,7 +72,7 @@ ALLOWED_SECTORS = [
     "Education & Formation", "Restauration & Hôtellerie",
     "Industrie & Production", "Commerce & Distribution",
     "Services aux entreprises", "Agriculture & Alimentaire",
-    "Energie & Environnement", "Juridique",
+    "Energie & Environnement", "Juridique", "Culture & Musées",
 ]
 
 VALID_COMPANY_TYPES = {
@@ -180,6 +180,17 @@ SECTOR_CORRECTIONS = {
 # Utilisé pour normaliser les catégories brutes
 # du scraping Google Maps avant d'appeler Groq
 GOOGLE_SECTOR_MAPPING = {
+    "musée":                            "Culture & Musées",
+    "museum":                           "Culture & Musées",
+    "galerie":                          "Culture & Musées",
+    "monument":                         "Culture & Musées",
+    "théâtre":                          "Culture & Musées",
+    "culturel":                         "Culture & Musées",
+    "culture":                          "Culture & Musées",
+    "patrimoine":                       "Culture & Musées",
+    "art":                              "Culture & Musées",
+    "exposition":                       "Culture & Musées",
+    "bibliothèque":                     "Culture & Musées",
     "consultant informatique":          "Informatique & Tech",
     "entreprise de gestion de bases":   "Informatique & Tech",
     "développement web":                "Informatique & Tech",
