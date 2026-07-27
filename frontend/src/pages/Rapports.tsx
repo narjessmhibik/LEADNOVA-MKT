@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+﻿import { useEffect, useState, useRef } from 'react'
 import Sidebar from '../components/Navbar'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -62,12 +62,16 @@ function KpiCard({ label, value, sub, icon, color, trend }: {
 }
 
 export default function Rapports() {
-  const [engagement, setEngagement] = useState<any>(null)
-  const [emailStats, setEmailStats] = useState<any>(null)
-  const [leadStats, setLeadStats]   = useState<any>(null)
-  const [abStats, setAbStats]       = useState<any>(null)
-  const [loading, setLoading]       = useState(true)
-  const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null)
+  const [engagement, setEngagement]   = useState<any>(null)
+  const [emailStats, setEmailStats]   = useState<any>(null)
+  const [leadStats, setLeadStats]     = useState<any>(null)
+  const [abStats, setAbStats]         = useState<any>(null)
+  const [weeklyStats, setWeeklyStats]         = useState<any[]>([])
+  const [campaignHistory, setCampaignHistory] = useState<any[]>([])
+  const [compareA, setCompareA]               = useState<string>('')
+  const [compareB, setCompareB]               = useState<string>('')
+  const [loading, setLoading]                 = useState(true)
+  const [exporting, setExporting]     = useState<'excel' | 'pdf' | null>(null)
   const reportRef = useRef<HTMLDivElement>(null)
 
   const handleExportExcel = async () => {
@@ -82,7 +86,7 @@ export default function Rapports() {
       const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = objectUrl
-      a.download = `leads_leadpilot_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `leads_leadnova_${new Date().toISOString().slice(0, 10)}.xlsx`
       a.click()
       URL.revokeObjectURL(objectUrl)
     } catch {
@@ -104,7 +108,7 @@ export default function Rapports() {
       const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = objectUrl
-      a.download = `rapport_leadpilot_${new Date().toISOString().slice(0, 10)}.pdf`
+      a.download = `rapport_leadnova_${new Date().toISOString().slice(0, 10)}.pdf`
       a.click()
       URL.revokeObjectURL(objectUrl)
     } catch {
@@ -121,11 +125,15 @@ export default function Rapports() {
       API.get('/campaigns/stats/email').catch(() => ({ data: null })),
       API.get('/leads/stats').catch(() => ({ data: null })),
       API.get('/campaigns/ab-stats').catch(() => ({ data: null })),
-    ]).then(([eng, email, leads, ab]) => {
+      API.get('/campaigns/stats/weekly').catch(() => ({ data: [] })),
+      API.get('/campaigns/history').catch(() => ({ data: [] })),
+    ]).then(([eng, email, leads, ab, weekly, history]) => {
       setEngagement(eng.data)
       setEmailStats(email.data)
       setLeadStats(leads.data)
       setAbStats(ab.data)
+      setWeeklyStats(weekly.data || [])
+      setCampaignHistory(history.data || [])
     }).finally(() => setLoading(false))
   }
 
@@ -148,17 +156,24 @@ export default function Rapports() {
     ? Object.entries(leadStats.segments).map(([name, value]) => ({ name, value }))
     : []
 
-  const sourceData = leadStats?.sources
-    ? leadStats.sources.map((s: any) => ({
-        name: s.source?.replace(/_/g, ' ') ?? '—',
-        value: s.count,
-      }))
-    : []
+  const sourceData = (() => {
+    const raw = leadStats?.sources ?? []
+    const pjmCount = raw.find((s: any) =>
+      s.source?.toLowerCase().includes('pages jaunes') || s.source?.toLowerCase().includes('pages_jaunes')
+    )?.count ?? 0
+    const merged = raw
+      .filter((s: any) => !s.source?.toLowerCase().includes('pages jaunes') && !s.source?.toLowerCase().includes('pages_jaunes'))
+      .map((s: any) => s.source?.toLowerCase().includes('scraping') ? { ...s, count: s.count + pjmCount } : s)
+    return merged.map((s: any) => ({
+      name: s.source?.replace(/_/g, ' ') ?? '—',
+      value: s.count,
+    }))
+  })()
 
   if (loading) return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
-      <div className="ml-56 flex-1 flex items-center justify-center">
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 flex items-center justify-center">
         <div className="text-center">
           <RefreshCw size={24} className="animate-spin text-blue-500 mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Chargement des analytics...</p>
@@ -168,15 +183,15 @@ export default function Rapports() {
   )
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
-      <div className="ml-56 flex-1 overflow-auto min-w-0">
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 overflow-auto min-w-0">
 
         {/* Header */}
         <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Rapports & Analytics</h1>
+              <h1 className="text-xl font-extrabold text-gray-900 font-display tracking-tight">Analytics</h1>
               <p className="text-[12px] text-gray-400 mt-0.5">
                 {leadStats?.total?.toLocaleString('fr')} leads analysés
               </p>
@@ -210,7 +225,7 @@ export default function Rapports() {
           {/* Section Leads */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-1 h-5 rounded-full bg-blue-600" />
+              <div className="w-1 h-5 rounded-full bg-[var(--nova-600)]" />
               <h2 className="font-bold text-gray-800 text-[15px]">Base de Leads</h2>
             </div>
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -222,7 +237,7 @@ export default function Rapports() {
               <KpiCard
                 label="Score moyen" value={`${leadStats?.avg_score ?? 0}/100`}
                 sub="modèle de scoring ML"
-                icon={<TrendingUp size={20} className="text-indigo-600" />} color="bg-indigo-50"
+                icon={<TrendingUp size={20} className="text-[var(--nova-600)]" />} color="bg-[var(--nova-50)]"
               />
               <KpiCard
                 label="Avec email" value={`${leadStats?.email_rate ?? 0}%`}
@@ -408,17 +423,63 @@ export default function Rapports() {
             </div>
           </div>
 
+          {/* Évolution hebdomadaire */}
+          {weeklyStats.length > 0 && (
+            <div className="card p-6 animate-fade-up">
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-1 h-5 rounded-full bg-sky-500" />
+                <div>
+                  <h2 className="font-bold text-gray-900 text-[15px]">Évolution des campagnes</h2>
+                  <p className="text-[11px] text-gray-400">Taux d'ouverture & clic par semaine (8 dernières semaines)</p>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={weeklyStats} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
+                  <defs>
+                    <linearGradient id="gradOpen" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#10b981" stopOpacity={0.18} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradClick" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#f59e0b" stopOpacity={0.18} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis unit="%" tick={{ fontSize: 11, fill: '#94a3b8' }} domain={[0, 'auto']} />
+                  <Tooltip content={<CustomTooltip />} formatter={(v: any) => `${v}%`} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area type="monotone" dataKey="open_rate"  name="Taux ouverture (%)" stroke="#10b981" strokeWidth={2} fill="url(#gradOpen)"  dot={{ r: 3, fill: '#10b981' }} />
+                  <Area type="monotone" dataKey="click_rate" name="Taux clic (%)"      stroke="#f59e0b" strokeWidth={2} fill="url(#gradClick)" dot={{ r: 3, fill: '#f59e0b' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                {[
+                  { label: 'Semaines analysées', val: weeklyStats.length },
+                  { label: 'Ouverture moy.', val: `${(weeklyStats.reduce((a, w) => a + w.open_rate, 0) / weeklyStats.length).toFixed(1)}%` },
+                  { label: 'Clic moy.', val: `${(weeklyStats.reduce((a, w) => a + w.click_rate, 0) / weeklyStats.length).toFixed(1)}%` },
+                ].map(({ label, val }) => (
+                  <div key={label} className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-center">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">{label}</p>
+                    <p className="text-lg font-extrabold text-gray-900 mt-1">{val}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Table taux par segment */}
           {engagement?.by_segment?.length > 0 && (
             <div className="card overflow-hidden animate-fade-up">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-                <div className="w-1 h-5 rounded-full bg-indigo-500" />
+                <div className="w-1 h-5 rounded-full bg-[var(--nova-500)]" />
                 <h2 className="font-bold text-gray-900 text-[15px]">Taux d'ouverture & clic par segment</h2>
               </div>
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50/80 border-b border-gray-100">
-                    {['Segment', 'Envoyés', 'Taux ouverture', 'Taux clic', 'Performance'].map(h => (
+                    {['Segment', 'Envoyés', 'Ouverture', 'Clic', 'Performance'].map(h => (
                       <th key={h} className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">{h}</th>
                     ))}
                   </tr>
@@ -436,11 +497,22 @@ export default function Rapports() {
                       <td className="px-6 py-3.5 font-bold text-green-600 text-[13px]">{s.open_rate}%</td>
                       <td className="px-6 py-3.5 font-bold text-orange-500 text-[13px]">{s.click_rate}%</td>
                       <td className="px-6 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 bg-gray-100 rounded-full h-1.5">
-                            <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${Math.min(s.open_rate * 2, 100)}%` }} />
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 bg-gray-100 rounded-full h-1.5">
+                              <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${Math.min(s.open_rate * 2, 100)}%` }} />
+                            </div>
+                            <span className="text-[10px] text-gray-400 w-6">ouv</span>
                           </div>
-                          <span className="text-[11px] text-gray-400">{s.open_rate > 20 ? 'Bon' : s.open_rate > 10 ? 'Moyen' : 'Faible'}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 bg-gray-100 rounded-full h-1.5">
+                              <div className="h-1.5 rounded-full bg-orange-400" style={{ width: `${Math.min(s.click_rate * 5, 100)}%` }} />
+                            </div>
+                            <span className="text-[10px] text-gray-400 w-6">clic</span>
+                          </div>
+                          <span className="text-[10px] font-semibold text-gray-500">
+                            {s.open_rate > 20 ? 'Bon' : s.open_rate > 10 ? 'Moyen' : 'Faible'}
+                          </span>
                         </div>
                       </td>
                     </tr>
@@ -450,8 +522,131 @@ export default function Rapports() {
             </div>
           )}
 
+          {/* Funnel email */}
+          {emailStats && (
+            <div className="card p-6 animate-fade-up">
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-1 h-5 rounded-full bg-[var(--nova-500)]" />
+                <h2 className="font-bold text-gray-900 text-[15px]">Funnel email</h2>
+              </div>
+              {(() => {
+                const steps = [
+                  { label: 'Générés',  val: emailStats.generated ?? 0, color: 'bg-[var(--nova-400)]' },
+                  { label: 'Envoyés',  val: emailStats.sent ?? 0,      color: 'bg-blue-400' },
+                  { label: 'Ouverts',  val: emailStats.opened ?? 0,    color: 'bg-green-500' },
+                  { label: 'Cliqués',  val: emailStats.clicked ?? 0,   color: 'bg-orange-400' },
+                ]
+                const max = steps[0].val || 1
+                return (
+                  <div className="space-y-3">
+                    {steps.map((step, i) => {
+                      const pct = Math.round((step.val / max) * 100)
+                      const conv = i > 0 && steps[i-1].val > 0
+                        ? `${Math.round((step.val / steps[i-1].val) * 100)}% du précédent`
+                        : ''
+                      return (
+                        <div key={step.label} className="flex items-center gap-4">
+                          <div className="w-20 text-right text-[11px] font-semibold text-gray-500 shrink-0">{step.label}</div>
+                          <div className="flex-1 bg-gray-100 rounded-full h-7 overflow-hidden relative">
+                            <div className={`h-full ${step.color} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+                            <span className="absolute inset-0 flex items-center px-3 text-[11px] font-bold text-white drop-shadow">
+                              {step.val.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="w-28 text-[10px] text-gray-400 shrink-0 text-right">
+                            {pct}%{conv ? ` · ${conv}` : ''}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* Comparaison entre campagnes */}
+          {campaignHistory.length >= 2 && (
+            <div className="card p-6 animate-fade-up">
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-1 h-5 rounded-full bg-orange-400" />
+                <h2 className="font-bold text-gray-900 text-[15px]">Comparaison entre campagnes</h2>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 mb-5">
+                {[
+                  { val: compareA, set: setCompareA, label: 'Campagne A' },
+                  { val: compareB, set: setCompareB, label: 'Campagne B' },
+                ].map(({ val, set, label }) => (
+                  <div key={label} className="flex-1">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</label>
+                    <select className="input text-sm w-full" value={val} onChange={e => set(e.target.value)}>
+                      <option value="">— choisir —</option>
+                      {campaignHistory.map((c: any) => (
+                        <option key={c.id} value={String(c.id)}>
+                          {c.campaign_name || c.name || `#${c.id}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {compareA && compareB && compareA !== compareB && (() => {
+                const ca = campaignHistory.find((c: any) => String(c.id) === compareA)
+                const cb = campaignHistory.find((c: any) => String(c.id) === compareB)
+                if (!ca || !cb) return null
+                const metrics = [
+                  { label: 'Leads ciblés', a: ca.leads_targeted ?? 0,          b: cb.leads_targeted ?? 0,          unit: '' },
+                  { label: 'Envoyés',      a: ca.stats?.sent ?? 0,              b: cb.stats?.sent ?? 0,              unit: '' },
+                  { label: 'Ouverture',    a: ca.stats?.open_rate  ?? ca.open_rate  ?? 0, b: cb.stats?.open_rate  ?? cb.open_rate  ?? 0, unit: '%' },
+                  { label: 'Clic',         a: ca.stats?.click_rate ?? ca.click_rate ?? 0, b: cb.stats?.click_rate ?? cb.click_rate ?? 0, unit: '%' },
+                ]
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-1 border-b border-gray-100">
+                      <span>{ca.campaign_name || ca.name || `#${ca.id}`}</span>
+                      <span className="text-center">Métrique</span>
+                      <span className="text-right">{cb.campaign_name || cb.name || `#${cb.id}`}</span>
+                    </div>
+                    {metrics.map(m => {
+                      const aVal = Number(m.a); const bVal = Number(m.b)
+                      const maxV = Math.max(aVal, bVal, 1)
+                      const aWins = aVal >= bVal
+                      return (
+                        <div key={m.label} className="grid grid-cols-3 items-center gap-3">
+                          <div className="flex items-center gap-2 justify-end">
+                            <span className={`text-[13px] font-bold ${aWins ? 'text-green-600' : 'text-gray-500'}`}>
+                              {aVal.toLocaleString()}{m.unit}
+                            </span>
+                            <div className="w-20 bg-gray-100 rounded-full h-2 overflow-hidden">
+                              <div className={`h-full ${aWins ? 'bg-green-500' : 'bg-gray-300'} rounded-full`}
+                                style={{ width: `${(aVal / maxV) * 100}%` }} />
+                            </div>
+                          </div>
+                          <div className="text-center text-[10px] font-semibold text-gray-400">{m.label}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 bg-gray-100 rounded-full h-2 overflow-hidden">
+                              <div className={`h-full ${!aWins ? 'bg-green-500' : 'bg-gray-300'} rounded-full`}
+                                style={{ width: `${(bVal / maxV) * 100}%` }} />
+                            </div>
+                            <span className={`text-[13px] font-bold ${!aWins ? 'text-green-600' : 'text-gray-500'}`}>
+                              {bVal.toLocaleString()}{m.unit}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+              {compareA === compareB && compareA !== '' && (
+                <p className="text-[12px] text-amber-600 text-center py-2">Sélectionnez deux campagnes différentes</p>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
     </div>
   )
 }
+

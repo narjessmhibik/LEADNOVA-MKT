@@ -53,3 +53,12 @@ backend/data/*.csv
 
 # Celery beat scheduler state
 celerybeat-schedule*
+
+# Tests
+backend/.coverage
+backend/test_leadpilot.db
+backend/coverage_html/
+
+# Claude Code local tooling config
+.claude/
+frontend/.claude/

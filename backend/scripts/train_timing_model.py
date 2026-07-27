@@ -1,7 +1,12 @@
+import os
+os.environ["PYTHONWARNINGS"] = "ignore"
+
+import warnings
+warnings.filterwarnings("ignore")
+
 import pandas as pd
 import numpy as np
 import joblib
-import os
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import LabelEncoder
@@ -24,10 +29,10 @@ print("Segments :", list(le_segment.classes_))
 print("Secteurs :", list(le_secteur.classes_))
 print()
 
-# Features et target (score continu) 
+
 FEATURES = ["heure", "jour", "segment_enc", "secteur_enc"]
 X = df[FEATURES]
-y = df["p_theo"]   # score continu 0-1, pas 0/1 binaire
+y = df["p_theo"]   
 
 # Split 80/20 
 X_train, X_test, y_train, y_test = train_test_split(
@@ -35,8 +40,8 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 print(f"Train : {len(X_train)} | Test : {len(X_test)}\n")
 
-# Entrainement RandomForestRegressor 
-print("Entrainement Random Forest Regressor...")
+# Entrainement 
+print("Entrainement Random Forest Regressor")
 model = RandomForestRegressor(
     n_estimators=300,
     max_depth=12,
@@ -44,7 +49,7 @@ model = RandomForestRegressor(
     min_samples_leaf=8,
     max_features="sqrt",
     random_state=42,
-    n_jobs=-1,
+    n_jobs=1,
 )
 model.fit(X_train, y_train)
 print("Entrainement termine.\n")
@@ -62,9 +67,9 @@ print(f"MAE          : {mae:.4f}  (erreur moyenne en points de %)")
 print(f"Correlation  : {corr:.4f} (1.0 = parfait)")
 print()
 
-# Cross-validation R2 
+# Cross-validation
 print("Cross-validation 5 folds (R2)...")
-cv_scores = cross_val_score(model, X, y, cv=5, scoring="r2", n_jobs=-1)
+cv_scores = cross_val_score(model, X, y, cv=5, scoring="r2", n_jobs=1)
 print(f"R2 CV : {cv_scores.mean():.4f} +/- {cv_scores.std():.4f}")
 print(f"Scores: {[round(s,4) for s in cv_scores]}\n")
 
@@ -76,7 +81,7 @@ for feat, imp in sorted(zip(FEATURES, model.feature_importances_), key=lambda x:
 print()
 
 # Meilleurs creneaux par segment 
-print("=== Meilleurs creneaux predits par segment ===")
+print(" Meilleurs creneaux predits par segment ")
 JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
 for seg in le_segment.classes_:
@@ -86,7 +91,8 @@ for seg in le_segment.classes_:
         sec_enc = le_secteur.transform([secteur])[0]
         for h in range(6, 22):
             for d in range(0, 7):
-                score = model.predict([[h, d, seg_enc, sec_enc]])[0]
+                row = pd.DataFrame([[h, d, seg_enc, sec_enc]], columns=FEATURES)
+                score = model.predict(row)[0]
                 resultats.append((score, h, d, secteur))
 
     resultats.sort(reverse=True)
@@ -107,4 +113,4 @@ print(f"Modeles sauvegardes dans : {models_dir}")
 print("  timing_model.pkl")
 print("  timing_le_segment.pkl")
 print("  timing_le_secteur.pkl")
-print("\nPhase 2 terminee avec succes.")
+

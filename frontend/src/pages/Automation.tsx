@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import Sidebar from '../components/Navbar'
 import axios from 'axios'
 import {
@@ -68,6 +68,7 @@ export default function Automation() {
     setShowModal(false)
     setForm({ name: '', description: '' })
     setTrigger('')
+    setExecResult({ id: -1, msg: 'Workflow créé en pause — activez-le (▶) puis lancez-le quand vous le souhaitez.' })
     fetchAll()
   }
 
@@ -115,7 +116,7 @@ export default function Automation() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
 
       {/* Panel emails envoyés */}
@@ -137,7 +138,7 @@ export default function Automation() {
                 {sentEmails.map(e => (
                   <div key={e.id} onClick={() => setSelectedEmail(e)}
                     className={`px-4 py-3 cursor-pointer border-b border-gray-50 hover:bg-gray-50 transition-colors ${
-                      selectedEmail?.id === e.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
+                      selectedEmail?.id === e.id ? 'bg-blue-50 border-l-2 border-l-[var(--nova-500)]' : ''
                     }`}>
                     <p className="font-semibold text-[13px] text-gray-900 truncate">{e.company}</p>
                     <p className="text-[11px] text-blue-500 truncate">{e.email}</p>
@@ -210,7 +211,7 @@ export default function Automation() {
                       <div key={t.id} onClick={() => setTrigger(t.id)}
                         className={`rounded-xl p-3 cursor-pointer border transition-all ${
                           trigger === t.id
-                            ? 'border-blue-500 bg-blue-50'
+                            ? 'border-[var(--nova-500)] bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}>
                         <div className="flex items-center gap-2 mb-1">
@@ -252,12 +253,12 @@ export default function Automation() {
         </div>
       )}
 
-      <div className="ml-56 flex-1 overflow-auto min-w-0">
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 overflow-auto min-w-0">
         {/* Header */}
         <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Automation</h1>
+              <h1 className="text-xl font-extrabold text-gray-900 font-display tracking-tight">Automation</h1>
               <p className="text-[12px] text-gray-400 mt-0.5">Workflows intelligents pour automatiser la prospection</p>
             </div>
             <div className="flex items-center gap-6">
@@ -362,7 +363,7 @@ export default function Automation() {
                       <div className="flex items-center gap-1.5">
                         {(wf.emails_sent ?? 0) > 0 && (
                           <button onClick={() => openSentEmails(wf.id)}
-                            className="btn btn-secondary text-xs px-3 py-2 border-blue-200 text-blue-600 hover:bg-blue-50">
+                            className="btn btn-secondary text-xs px-3 py-2 border-blue-200 text-blue-600 hover:bg-[var(--nova-50)]">
                             <Mail size={13} /> Voir emails
                           </button>
                         )}
@@ -404,9 +405,8 @@ export default function Automation() {
                 { name: 'Bienvenue nouveaux leads',  trigger: 'new_lead',   desc: 'Email de bienvenue dès qu\'un lead est ajouté' },
                 { name: 'Relance leads chauds',      trigger: 'score_high', desc: 'Contactez automatiquement les leads avec score ≥ 70' },
                 { name: 'Suivi après 7 jours',       trigger: 'no_email',   desc: 'Relance si pas de réponse après une semaine' },
-                { name: 'Félicitation deal gagné',   trigger: 'deal_won',   desc: 'Email de confirmation quand un deal est clos' },
               ].map(t => (
-                <div key={t.name} className="border border-gray-100 rounded-xl p-4 hover:border-blue-200 hover:bg-blue-50/30 transition-all group">
+                <div key={t.name} className="border border-gray-100 rounded-xl p-4 hover:border-[var(--nova-200)] hover:bg-[var(--nova-50)]/30 transition-all group">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <p className="font-semibold text-[13px] text-gray-800 mb-1">{t.name}</p>
@@ -417,7 +417,7 @@ export default function Automation() {
                         await API.post('/workflows/', { name: t.name, trigger: t.trigger, description: t.desc, actions: 'email' })
                         fetchAll()
                       }}
-                      className="text-[11px] font-semibold text-blue-600 border border-blue-200 px-2.5 py-1 rounded-lg hover:bg-blue-600 hover:text-white transition-all flex-shrink-0 opacity-0 group-hover:opacity-100">
+                      className="text-[11px] font-semibold text-blue-600 border border-blue-200 px-2.5 py-1 rounded-lg hover:bg-[var(--nova-600)] hover:text-white transition-all flex-shrink-0 opacity-0 group-hover:opacity-100">
                       + Ajouter
                     </button>
                   </div>
@@ -431,3 +431,4 @@ export default function Automation() {
     </div>
   )
 }
+

@@ -3,9 +3,9 @@ import { login, register } from '../services/api'
 import { Eye, EyeOff, Sparkles, Target, Zap, BarChart2, ArrowRight, Check } from 'lucide-react'
 
 const FEATURES = [
-  { icon: Target,    text: 'Génération automatique de leads B2B' },
-  { icon: Sparkles,  text: 'Scoring IA automatique' },
-  { icon: Zap,       text: 'Enrichissement automatique & CRM intégré' },
+  { icon: Target,    text: 'Détection automatique de prospects B2B' },
+  { icon: Sparkles,  text: 'Scoring & priorisation par IA' },
+  { icon: Zap,       text: 'Enrichissement temps réel & CRM intégré' },
   { icon: BarChart2, text: 'Analytics & segmentation intelligente' },
 ]
 
@@ -73,51 +73,54 @@ export default function Login() {
 
       {/* Left brand panel */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden"
-        style={{ background: 'linear-gradient(145deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%)' }}>
+        style={{ background: 'linear-gradient(150deg, #14121f 0%, #2a1f5e 55%, #14121f 100%)' }}>
 
         {/* Background orbs */}
-        <div className="absolute top-[-80px] right-[-80px] w-80 h-80 rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, #3b82f6, transparent)' }} />
-        <div className="absolute bottom-[-60px] left-[-60px] w-64 h-64 rounded-full opacity-15"
-          style={{ background: 'radial-gradient(circle, #8b5cf6, transparent)' }} />
+        <div className="absolute top-[-90px] right-[-70px] w-80 h-80 rounded-full opacity-30 blur-[2px]"
+          style={{ background: 'radial-gradient(circle, #6d5dfb, transparent 70%)' }} />
+        <div className="absolute bottom-[-70px] left-[-70px] w-72 h-72 rounded-full opacity-25"
+          style={{ background: 'radial-gradient(circle, #ec4899, transparent 70%)' }} />
+        <div className="absolute top-1/3 left-1/4 w-40 h-40 rounded-full opacity-15"
+          style={{ background: 'radial-gradient(circle, #a855f7, transparent 70%)' }} />
 
         {/* Logo */}
         <div className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>
-            <Sparkles size={18} className="text-white" />
+          <div className="nova-mark w-11 h-11 rounded-2xl flex items-center justify-center">
+            <Sparkles size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white">LeadPilot</h1>
-            <p className="text-[11px] text-blue-300 font-medium tracking-widest uppercase">AI-Powered CRM</p>
+            <h1 className="text-xl font-extrabold text-white font-display tracking-tight">
+              Lead<span style={{ background: 'linear-gradient(135deg,#a78bfa,#f0abfc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>nova</span>
+            </h1>
+            <p className="text-[10px] text-violet-300 font-semibold tracking-[0.2em] uppercase">AI Sales Engine</p>
           </div>
         </div>
 
         {/* Hero */}
         <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 bg-blue-500/15 border border-blue-500/25 text-blue-300 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            Plateforme B2B Intelligence
+          <div className="inline-flex items-center gap-2 bg-violet-500/15 border border-violet-400/25 text-violet-200 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Intelligence commerciale B2B
           </div>
 
-          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
-            Transformez vos
+          <h2 className="text-[42px] font-extrabold text-white leading-[1.1] mb-4 font-display tracking-tight">
+            Vos données,
             <span className="block"
-              style={{ background: 'linear-gradient(135deg, #60a5fa, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              leads en clients
+              style={{ background: 'linear-gradient(135deg, #a78bfa, #f0abfc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              transformées en ventes
             </span>
           </h2>
 
           <p className="text-slate-400 text-sm leading-relaxed mb-10 max-w-sm">
-            Générez, qualifiez et analysez automatiquement vos leads B2B grâce à l'intelligence artificielle.
+            Leadnova capte, qualifie et priorise vos prospects B2B grâce à l'IA — pour que votre équipe ne parle qu'aux bons comptes.
           </p>
 
           <div className="space-y-4">
             {FEATURES.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(59,130,246,.15)', border: '1px solid rgba(99,102,241,.25)' }}>
-                  <Icon size={13} className="text-blue-400" />
+                  style={{ background: 'rgba(109,93,251,.18)', border: '1px solid rgba(168,85,247,.28)' }}>
+                  <Icon size={13} className="text-violet-300" />
                 </div>
                 <span className="text-slate-300 text-sm">{text}</span>
               </div>
@@ -128,11 +131,11 @@ export default function Login() {
         {/* Footer stat */}
         <div className="relative z-10 flex gap-8">
           {[
-            { val: '8 500+', lab: 'Leads générés' },
+            { val: '9 100+', lab: 'Prospects générés' },
             { val: '62.9',   lab: 'Score moyen IA' },
           ].map(({ val, lab }) => (
             <div key={lab}>
-              <p className="text-2xl font-bold text-white">{val}</p>
+              <p className="text-2xl font-extrabold text-white font-display">{val}</p>
               <p className="text-slate-500 text-xs">{lab}</p>
             </div>
           ))}
@@ -146,21 +149,17 @@ export default function Login() {
           {/* Écran confirmation email */}
           {registered && (
             <div className="text-center py-10">
-              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-5">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                </svg>
+              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
+                <Check size={32} className="text-green-600" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Vérifiez votre email</h2>
-              <p className="text-gray-500 mb-1">Un lien de confirmation a été envoyé à</p>
-              <p className="font-semibold text-blue-600 mb-6">{email}</p>
-              <p className="text-sm text-gray-400 mb-8">Cliquez sur le lien dans l'email pour activer votre compte. Vérifiez aussi vos spams.</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Compte créé !</h2>
+              <p className="text-gray-500 mb-1">Vous pouvez maintenant vous connecter avec</p>
+              <p className="font-semibold text-[var(--nova-600)] mb-6">{email}</p>
               <button
                 onClick={() => { setRegistered(false); setTab('login') }}
-                className="text-sm text-blue-500 hover:underline"
+                className="btn btn-primary w-full justify-center"
               >
-                Retour à la connexion
+                Se connecter <ArrowRight size={15} />
               </button>
             </div>
           )}
@@ -169,20 +168,19 @@ export default function Login() {
 
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>
+            <div className="nova-mark w-8 h-8 rounded-xl flex items-center justify-center">
               <Sparkles size={14} className="text-white" />
             </div>
-            <span className="font-bold text-gray-900">LeadPilot</span>
+            <span className="font-extrabold text-gray-900 font-display">Lead<span className="nova-text">nova</span></span>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">
+          <h2 className="text-2xl font-extrabold text-gray-900 mb-1 font-display tracking-tight">
             {tab === 'login' ? 'Bon retour !' : 'Créer un compte'}
           </h2>
           <p className="text-gray-500 text-sm mb-8">
             {tab === 'login'
-              ? 'Connectez-vous à votre espace LeadPilot'
-              : 'Commencez avec LeadPilot gratuitement'}
+              ? 'Connectez-vous à votre espace Leadnova'
+              : 'Commencez avec Leadnova gratuitement'}
           </p>
 
           {/* Tabs */}
@@ -249,7 +247,7 @@ export default function Login() {
                   Mot de passe
                 </label>
                 {tab === 'login' && (
-                  <a href="#" className="text-xs text-blue-600 hover:underline font-medium">Oublié ?</a>
+                  <a href="#" className="text-xs text-[var(--nova-600)] hover:underline font-medium">Oublié ?</a>
                 )}
               </div>
               <div className={`input flex items-center gap-2 p-0 overflow-hidden ${errors.password ? 'border-red-400' : ''}`}>
@@ -289,7 +287,7 @@ export default function Login() {
             {/* Remember me */}
             {tab === 'login' && (
               <label className="flex items-center gap-2 cursor-pointer" onClick={() => setRemember(r => !r)}>
-                <div className={`w-4 h-4 border-2 rounded flex items-center justify-center transition-colors ${remember ? 'bg-blue-500 border-blue-500' : 'border-gray-300'}`}>
+                <div className={`w-4 h-4 border-2 rounded flex items-center justify-center transition-colors ${remember ? 'bg-[var(--nova-500)] border-[var(--nova-500)]' : 'border-gray-300'}`}>
                   <Check size={10} className={remember ? 'text-white' : 'text-transparent'} />
                 </div>
                 <span className="text-sm text-gray-500">Se souvenir de moi</span>
@@ -301,8 +299,8 @@ export default function Login() {
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full mt-6 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-60"
-            style={{ background: loading ? '#93c5fd' : 'linear-gradient(135deg, #2563eb, #7c3aed)', boxShadow: '0 4px 15px rgba(37,99,235,.4)' }}
+            className="w-full mt-6 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-60 font-display"
+            style={{ background: loading ? '#b1a9ff' : 'linear-gradient(135deg, #6d5dfb, #a855f7)', boxShadow: '0 8px 22px rgba(109,93,251,.4)' }}
           >
             {loading ? (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -319,9 +317,9 @@ export default function Login() {
 
           <p className="text-center text-xs text-gray-400 mt-6">
             En continuant, vous acceptez nos{' '}
-            <a href="#" className="text-blue-600 hover:underline">Conditions d'utilisation</a>
+            <a href="#" className="text-[var(--nova-600)] hover:underline">Conditions d'utilisation</a>
             {' '}et notre{' '}
-            <a href="#" className="text-blue-600 hover:underline">Politique de confidentialité</a>
+            <a href="#" className="text-[var(--nova-600)] hover:underline">Politique de confidentialité</a>
           </p>
           </>)}
         </div>

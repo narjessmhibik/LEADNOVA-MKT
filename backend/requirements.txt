@@ -36,3 +36,10 @@ sib-api-v3-sdk
 # ── Exports (Excel / PDF) ──────────────────────
 openpyxl
 reportlab
+
+# ── Tests ───────────────────────────────────────
+pytest
+pytest-asyncio
+httpx
+aiosqlite
+pytest-cov

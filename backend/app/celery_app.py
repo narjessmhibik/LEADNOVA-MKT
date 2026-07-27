@@ -19,9 +19,4 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.send_followup_emails",
         "schedule": crontab(hour=9, minute=0),
     },
-    # Réentraînement closing sur données réelles — chaque jour à 3h
-    "retrain-closing-daily": {
-        "task": "app.tasks.retrain_closing_model",
-        "schedule": crontab(hour=3, minute=0),
-    },
 }

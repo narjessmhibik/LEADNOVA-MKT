@@ -50,6 +50,30 @@ def main():
         logger.error(f" K-Means erreur: {e}")
         sys.exit(1)
 
+    # 4. Timing model — données réelles si seuil atteint
+    logger.info("\n[4/4] Vérification timing model...")
+    try:
+        from pathlib import Path
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+        db_url = os.getenv("DATABASE_URL", "").replace("postgresql+asyncpg://", "postgresql+psycopg2://").replace("postgresql://", "postgresql+psycopg2://")
+        from sqlalchemy import create_engine, text as sql_text
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            n_opens = conn.execute(sql_text(
+                "SELECT COUNT(*) FROM leads WHERE email_opened = TRUE AND email_opened_at IS NOT NULL AND segment IS NOT NULL AND sector IS NOT NULL"
+            )).scalar() or 0
+
+        if n_opens >= 200:
+            logger.info(f"   {n_opens} ouvertures réelles — réentraînement timing sur données réelles...")
+            from scripts.train_timing_model_real import main as train_timing_real
+            train_timing_real()
+            logger.info(" Timing model réentraîné sur données réelles")
+        else:
+            logger.info(f"   {n_opens}/200 ouvertures réelles — modèle synthétique conservé")
+    except Exception as e:
+        logger.warning(f" Timing model erreur (non bloquant): {e}")
+
     logger.info("\n" + "=" * 60)
     logger.info(" RÉENTRAÎNEMENT COMPLET TERMINÉ")
     logger.info("Redémarre Uvicorn pour que les nouveaux modèles soient pris en compte.")

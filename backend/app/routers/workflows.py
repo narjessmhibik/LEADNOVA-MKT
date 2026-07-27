@@ -270,7 +270,7 @@ async def create_workflow(data: WorkflowCreate, db: AsyncSession = Depends(get_d
     wf = Workflow(
         name=data.name, trigger=data.trigger,
         description=data.description, actions=data.actions,
-        status="active", executions=0, emails_sent=0,
+        status="paused", executions=0, emails_sent=0,
     )
     db.add(wf)
     await db.commit()

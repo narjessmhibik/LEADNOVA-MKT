@@ -3,7 +3,7 @@ import Sidebar from '../components/Navbar'
 import axios from 'axios'
 import {
   Play, Trash2, RefreshCw, Plus, Clock, CheckCircle,
-  AlertCircle, Loader, MapPin, Search, Building2, TrendingUp
+  AlertCircle, Loader, MapPin, Search, Building2, TrendingUp, Ban
 } from 'lucide-react'
 
 const API = axios.create({ baseURL: (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000') })
@@ -14,17 +14,36 @@ API.interceptors.request.use(c => {
 })
 
 const SOURCE_COLORS: Record<string, string> = {
-  'Google Maps':        'bg-green-100 text-green-700',
-  'Pages Jaunes':       'bg-yellow-100 text-yellow-700',
-  'Pages Jaunes Maroc': 'bg-orange-100 text-orange-700',
-  'Import CSV':         'bg-gray-100 text-gray-700',
+  'Google Maps':   'bg-green-100 text-green-700',
+  'OpenStreetMap': 'bg-[var(--nova-100)] text-[var(--nova-700)]',
+  'Pages Jaunes':  'bg-yellow-100 text-yellow-700',
+  'Import CSV':    'bg-gray-100 text-gray-700',
 }
+
+// Les 12 catégories réellement disponibles sur TunisieIndex (source Pages Jaunes)
+const PAGES_JAUNES_SECTORS = [
+  'Informatique & Tech', 'Finance & Comptabilité', 'Santé', 'Immobilier',
+  'Construction & BTP', 'Transport & Logistique', 'Education & Formation',
+  'Restauration & Hôtellerie', 'Commerce & Distribution', 'Services aux entreprises',
+  'Agriculture & Alimentaire', 'Marketing & Communication',
+]
+
+// Noms de pays : on veut une VILLE pour le géocodage, pas un pays (avertissement #8)
+const COUNTRY_NAMES = new Set([
+  'tunisie', 'tunisia', 'france', 'maroc', 'morocco', 'algerie', 'algérie', 'algeria',
+  'espagne', 'spain', 'italie', 'italy', 'allemagne', 'germany', 'belgique', 'belgium',
+  'portugal', 'egypte', 'égypte', 'egypt', 'senegal', 'sénégal', 'royaume-uni', 'uk',
+  'angleterre', 'england', 'pays-bas', 'netherlands', 'suisse', 'switzerland',
+  'canada', 'usa', 'états-unis', 'etats-unis', 'united states', 'qatar', 'emirats',
+  'arabie saoudite', 'turquie', 'turkey', 'grèce', 'grece', 'greece', 'pologne',
+])
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   en_attente: { label: 'En attente', color: 'text-gray-500',  icon: Clock },
   actif:      { label: 'En cours',   color: 'text-blue-600',  icon: Loader },
   termine:    { label: 'Terminé',    color: 'text-green-600', icon: CheckCircle },
   erreur:     { label: 'Erreur',     color: 'text-red-600',   icon: AlertCircle },
+  annule:     { label: 'Annulé',     color: 'text-gray-400',  icon: Ban },
 }
 
 const SEGMENT_COLORS: Record<string, string> = {
@@ -141,10 +160,21 @@ export default function Scraping() {
     fetchAll()
   }
 
+  const cancelJob = async (id: number) => {
+    try {
+      const res = await API.post(`/scraping/jobs/${id}/cancel`)
+      setJobs(jobs.map(j => j.id === id ? res.data : j))
+      setAlert({ type: 'success', msg: "Job arrêté — le scraping en cours va s'interrompre." })
+      fetchAll()
+    } catch (e: any) {
+      setAlert({ type: 'error', msg: ` ${e.response?.data?.detail || e.message}` })
+    }
+  }
+
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
-      <div className="ml-52 flex-1 overflow-auto min-w-0">
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 overflow-auto min-w-0">
 
         {/* Modal Nouveau Job */}
         {showModal && (
@@ -161,13 +191,21 @@ export default function Scraping() {
                   </label>
                   <input type="text" placeholder="Ex: Google Maps — Restaurants Tunis"
                     value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)] focus:ring-1 focus:ring-[var(--nova-100)]"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Source</label>
-                  <select value={form.source} onChange={e => { setForm({ ...form, source: e.target.value }); setCsvFile(null); setCsvUploaded(false) }}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400">
+                  <select value={form.source} onChange={e => {
+                      const src = e.target.value
+                      // Reset du secteur s'il n'est pas valide pour la nouvelle source
+                      const validSector = src === 'Pages Jaunes'
+                        ? (PAGES_JAUNES_SECTORS.includes(form.sector) ? form.sector : '')
+                        : form.sector
+                      setForm({ ...form, source: src, sector: validSector })
+                      setCsvFile(null); setCsvUploaded(false)
+                    }}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)]">
                     {Object.keys(SOURCE_COLORS).map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
@@ -177,7 +215,7 @@ export default function Scraping() {
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Fichier CSV</label>
                     {!csvUploaded ? (
-                      <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                      <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[var(--nova-400)] hover:bg-[var(--nova-50)] transition-colors">
                         <span className="text-sm text-gray-400">{csvFile ? csvFile.name : ' Cliquez pour choisir un fichier .csv'}</span>
                         {csvFile && (
                           <button
@@ -196,7 +234,7 @@ export default function Scraping() {
                               } catch { alert('Erreur upload CSV') }
                               finally { setCsvUploading(false) }
                             }}
-                            className="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                            className="mt-2 px-3 py-1 bg-[var(--nova-500)] text-white text-xs rounded-lg hover:bg-[var(--nova-600)] disabled:opacity-50"
                           >
                             {csvUploading ? 'Upload...' : ' Uploader'}
                           </button>
@@ -216,7 +254,7 @@ export default function Scraping() {
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Mots-clés</label>
                   <input type="text" placeholder="Ex: restaurant, café, pizzeria..."
                     value={form.keywords} onChange={e => setForm({ ...form, keywords: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)]"
                   />
                 </div>
                 <div>
@@ -224,17 +262,34 @@ export default function Scraping() {
                   <input type="text"
                     placeholder="Ex: Tunis, Paris, Lyon, Madrid..."
                     value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-colors ${
+                      COUNTRY_NAMES.has(form.location.trim().toLowerCase())
+                        ? 'border-orange-400 bg-orange-50 focus:border-orange-400'
+                        : 'border-gray-200 focus:border-[var(--nova-400)]'
+                    }`}
                   />
+                  {COUNTRY_NAMES.has(form.location.trim().toLowerCase()) && (
+                    <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                      <AlertCircle size={12} className="flex-shrink-0" />
+                      Indiquez une <strong>ville</strong> (ex : Tunis, Rome, Madrid), pas un pays — le géocodage sera plus précis.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Secteur</label>
                   <select
                     value={form.sector} onChange={e => setForm({ ...form, sector: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400">
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)]">
                     <option value="">Tous les secteurs</option>
-                    {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+                    {(form.source === 'Pages Jaunes' ? PAGES_JAUNES_SECTORS : SECTORS).map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
                   </select>
+                  {form.source === 'Pages Jaunes' && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Seules les 12 catégories réellement disponibles sur TunisieIndex sont proposées.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -243,7 +298,7 @@ export default function Scraping() {
                   <input type="number" min={1} max={500} value={form.maxLeads}
                     onChange={e => setForm({ ...form, maxLeads: Number(e.target.value) })}
                     placeholder="Ex : 100"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)]"
                   />
                   <p className="text-xs text-gray-400 mt-1">Entre 1 et 500</p>
                 </div>
@@ -254,7 +309,7 @@ export default function Scraping() {
                   Annuler
                 </button>
                 <button onClick={createJob} disabled={!form.name.trim() || submitting}
-                  className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-40 font-medium flex items-center justify-center gap-2">
+                  className="flex-1 bg-[var(--nova-600)] text-white py-2.5 rounded-lg text-sm hover:bg-[var(--nova-700)] disabled:opacity-40 font-medium flex items-center justify-center gap-2">
                   {submitting ? <Loader size={14} className="animate-spin"/> : <Play size={14}/>}
                   Créer le job
                 </button>
@@ -267,7 +322,7 @@ export default function Scraping() {
         <div className="bg-white px-6 py-4 border-b sticky top-0 z-10 shadow-sm">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Scraping de Leads</h1>
+              <h1 className="text-xl font-extrabold text-gray-900 font-display tracking-tight">Scraping</h1>
               <p className="text-gray-400 text-sm">Collectez automatiquement des leads qualifiés</p>
             </div>
             <div className="flex items-center gap-3">
@@ -275,7 +330,7 @@ export default function Scraping() {
                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''}/>
               </button>
               <button onClick={() => setShowModal(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700">
+                className="flex items-center gap-2 bg-[var(--nova-600)] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[var(--nova-700)]">
                 <Plus size={15}/> Nouveau Job
               </button>
             </div>
@@ -317,7 +372,7 @@ export default function Scraping() {
           <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-1 h-5 bg-blue-600 rounded"/>
+                <div className="w-1 h-5 bg-[var(--nova-600)] rounded"/>
                 <h2 className="font-bold text-gray-800">Jobs de Scraping</h2>
                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{jobs.length}</span>
               </div>
@@ -379,14 +434,21 @@ export default function Scraping() {
                               {job.status === 'en_attente' && (
                                 <button onClick={() => startJob(job.id)}
                                   title="Lancer le scraping"
-                                  className="p-1.5 hover:bg-blue-50 rounded text-blue-500 hover:text-blue-700">
+                                  className="p-1.5 hover:bg-[var(--nova-50)] rounded text-blue-500 hover:text-blue-700">
                                   <Play size={13}/>
                                 </button>
                               )}
                               {job.status === 'actif' && (
-                                <span title="En cours..." className="p-1.5">
-                                  <Loader size={13} className="animate-spin text-blue-400"/>
-                                </span>
+                                <>
+                                  <span title="En cours..." className="p-1.5">
+                                    <Loader size={13} className="animate-spin text-blue-400"/>
+                                  </span>
+                                  <button onClick={() => cancelJob(job.id)}
+                                    title="Arrêter le scraping"
+                                    className="p-1.5 hover:bg-red-50 rounded text-gray-300 hover:text-red-400">
+                                    <Ban size={13}/>
+                                  </button>
+                                </>
                               )}
                               <button onClick={() => deleteJob(job.id, job.name)}
                                 className="p-1.5 hover:bg-red-50 rounded text-gray-300 hover:text-red-400">
@@ -481,3 +543,4 @@ export default function Scraping() {
     </div>
   )
 }
+

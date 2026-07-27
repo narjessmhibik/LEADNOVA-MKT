@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+﻿import { useEffect, useState, useCallback, type ReactNode } from 'react'
 import Sidebar from '../components/Navbar'
-import { getLeads, updateLeadStatus, convertLeadToOpportunity } from '../services/api'
-import { Search, Filter, ChevronLeft, ChevronRight, Mail, Phone, Globe, ArrowRightCircle, Check } from 'lucide-react'
+import { getLeads, updateLeadStatus } from '../services/api'
+import { Search, Filter, ChevronLeft, ChevronRight, Mail, Phone, Globe, MapPin, Building2, ExternalLink, X, Tag, Radar } from 'lucide-react'
 
 interface Lead {
   id: number
@@ -98,24 +98,9 @@ export default function Leads() {
     fetchLeads()
   }
 
-  const [converting, setConverting] = useState<number | null>(null)
-  const [converted, setConverted] = useState<number[]>([])
-  const [convertMsg, setConvertMsg] = useState<string | null>(null)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
-  const handleConvert = async (lead: Lead) => {
-    setConverting(lead.id)
-    try {
-      const res = await convertLeadToOpportunity(lead.id)
-      setConverted(prev => [...prev, lead.id])
-      setConvertMsg(`${lead.company || 'Lead'} converti en opportunité (${res.data.value.toLocaleString('fr')} TND)`)
-      setTimeout(() => setConvertMsg(null), 4000)
-    } catch (e: any) {
-      setConvertMsg(e.response?.data?.detail || 'Erreur lors de la conversion')
-      setTimeout(() => setConvertMsg(null), 4000)
-    } finally {
-      setConverting(null)
-    }
-  }
+  const normalizeUrl = (url: string) => url.startsWith('http') ? url : `https://${url}`
 
   const scoreColor = (score: number | null) => {
     if (!score) return 'text-gray-400'
@@ -125,24 +110,16 @@ export default function Leads() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
 
-      {/* Toast conversion */}
-      {convertMsg && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-white border border-indigo-200 shadow-lg rounded-xl px-4 py-3 flex items-center gap-2 text-sm font-medium text-gray-800 animate-fade-in">
-          <ArrowRightCircle size={16} className="text-indigo-500" />
-          {convertMsg}
-        </div>
-      )}
-
-      <div className="ml-52 flex-1 overflow-auto min-w-0">
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 overflow-auto min-w-0">
 
         {/* Header */}
         <div className="bg-white p-6 border-b sticky top-0 z-10">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">Leads</h1>
+              <h1 className="text-2xl font-extrabold text-gray-900 font-display tracking-tight">Prospects</h1>
               <p className="text-gray-500 text-sm">
                 {data?.total.toLocaleString() ?? '...'} résultats
               </p>
@@ -159,11 +136,11 @@ export default function Leads() {
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                className="border rounded-lg px-3 py-2 text-sm flex-1 outline-none focus:border-blue-400"
+                className="border rounded-lg px-3 py-2 text-sm flex-1 outline-none focus:border-[var(--nova-400)]"
               />
               <button
                 onClick={handleSearch}
-                className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700"
+                className="bg-[var(--nova-600)] text-white px-3 py-2 rounded-lg hover:bg-[var(--nova-700)]"
               >
                 <Search size={16} />
               </button>
@@ -173,7 +150,7 @@ export default function Leads() {
             <select
               value={segment}
               onChange={e => handleFilter('segment', e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="border rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)]"
             >
               <option value="">Tous les segments</option>
               <option value="Chaud">Chaud</option>
@@ -186,7 +163,7 @@ export default function Leads() {
             <select
               value={sector}
               onChange={e => handleFilter('sector', e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="border rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)]"
             >
               <option value="">Tous les secteurs</option>
               {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -196,7 +173,7 @@ export default function Leads() {
             <select
               value={hasEmail}
               onChange={e => handleFilter('hasEmail', e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="border rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)]"
             >
               <option value="">Email : tous</option>
               <option value="true">Avec email</option>
@@ -207,7 +184,7 @@ export default function Leads() {
             <select
               value={status}
               onChange={e => handleFilter('status', e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="border rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--nova-400)]"
             >
               <option value="">Tous les statuts</option>
               <option value="new">Nouveau</option>
@@ -250,19 +227,20 @@ export default function Leads() {
                       <th className="p-3 text-left text-gray-500 font-medium">Score</th>
                       <th className="p-3 text-left text-gray-500 font-medium">Joignabilité</th>
                       <th className="p-3 text-left text-gray-500 font-medium">Statut</th>
-                      <th className="p-3 text-left text-gray-500 font-medium">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data?.items.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="text-center py-16 text-gray-400">
+                        <td colSpan={8} className="text-center py-16 text-gray-400">
                           Aucun lead trouvé
                         </td>
                       </tr>
                     ) : (
                       data?.items.map((lead) => (
-                        <tr key={lead.id} className="border-t hover:bg-gray-50 transition-colors">
+                        <tr key={lead.id}
+                          onClick={() => setSelectedLead(lead)}
+                          className="border-t hover:bg-[var(--nova-50)]/60 transition-colors cursor-pointer">
                           {/* Entreprise */}
                           <td className="p-3">
                             <p className="font-semibold text-gray-900">{lead.company || '—'}</p>
@@ -319,14 +297,27 @@ export default function Leads() {
                               <span title="Téléphone" className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-xs ${lead.phone ? 'bg-purple-500' : 'bg-gray-200'}`}>
                                 T
                               </span>
-                              <span title="Site web" className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-xs ${lead.website ? 'bg-blue-500' : 'bg-gray-200'}`}>
-                                W
-                              </span>
+                              {lead.website ? (
+                                <a
+                                  href={normalizeUrl(lead.website)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  title={`Ouvrir ${lead.website}`}
+                                  className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs bg-blue-500 hover:bg-blue-600 transition-colors"
+                                >
+                                  W
+                                </a>
+                              ) : (
+                                <span title="Pas de site web" className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs bg-gray-200">
+                                  W
+                                </span>
+                              )}
                             </div>
                           </td>
 
                           {/* Statut */}
-                          <td className="p-3">
+                          <td className="p-3" onClick={e => e.stopPropagation()}>
                             <select
                               value={lead.status}
                               onChange={e => handleStatusChange(lead.id, e.target.value)}
@@ -338,25 +329,6 @@ export default function Leads() {
                               <option value="converti">Converti</option>
                               <option value="perdu">Perdu</option>
                             </select>
-                          </td>
-
-                          {/* Action : conversion en opportunité */}
-                          <td className="p-3">
-                            {converted.includes(lead.id) || lead.status === 'converti' ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-purple-600 font-medium">
-                                <Check size={13} /> Converti
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => handleConvert(lead)}
-                                disabled={converting === lead.id}
-                                title="Convertir ce lead en opportunité (pipeline Sales)"
-                                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-colors whitespace-nowrap"
-                              >
-                                <ArrowRightCircle size={13} />
-                                {converting === lead.id ? '...' : 'Convertir'}
-                              </button>
-                            )}
                           </td>
                         </tr>
                       ))
@@ -393,6 +365,121 @@ export default function Leads() {
           </div>
         </div>
       </div>
+
+      {/* Panneau détail du prospect */}
+      {selectedLead && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40 animate-fade-in" onClick={() => setSelectedLead(null)} />
+          <aside className="fixed top-0 right-0 h-screen w-[400px] max-w-[92vw] bg-white shadow-2xl z-50 overflow-y-auto animate-fade-in border-l border-[var(--border)]">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-[var(--border)] px-6 py-5 flex items-start justify-between">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-xl nova-mark flex items-center justify-center flex-shrink-0">
+                  <Building2 size={20} className="text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-extrabold text-gray-900 font-display tracking-tight truncate">
+                    {selectedLead.company || '—'}
+                  </h2>
+                  {selectedLead.company_type && (
+                    <span className="text-xs text-gray-400">{selectedLead.company_type}</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setSelectedLead(null)} className="text-gray-400 hover:text-gray-700 p-1 -mr-1 flex-shrink-0">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Score + Segment */}
+              <div className="flex gap-3">
+                <div className="flex-1 rounded-xl border border-[var(--border)] p-3.5 text-center">
+                  <p className={`text-2xl font-extrabold tabular-nums ${scoreColor(selectedLead.lead_score)}`}>
+                    {selectedLead.lead_score != null ? selectedLead.lead_score.toFixed(1) : '—'}
+                  </p>
+                  <p className="text-[11px] text-gray-400 font-medium mt-0.5">Score IA</p>
+                </div>
+                <div className="flex-1 rounded-xl border border-[var(--border)] p-3.5 text-center flex flex-col items-center justify-center">
+                  {selectedLead.segment ? (
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${SEGMENT_COLORS[selectedLead.segment] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {selectedLead.segment}
+                    </span>
+                  ) : <span className="text-gray-300 text-sm">—</span>}
+                  <p className="text-[11px] text-gray-400 font-medium mt-1.5">Segment</p>
+                </div>
+              </div>
+
+              {/* Coordonnées */}
+              <div className="space-y-1">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Coordonnées</p>
+                <DetailRow icon={<Mail size={15} />} label="Email"
+                  value={selectedLead.email}
+                  href={selectedLead.email ? `mailto:${selectedLead.email}` : undefined} />
+                <DetailRow icon={<Phone size={15} />} label="Téléphone"
+                  value={selectedLead.phone}
+                  href={selectedLead.phone ? `tel:${selectedLead.phone}` : undefined} />
+                <DetailRow icon={<Globe size={15} />} label="Site web"
+                  value={selectedLead.website}
+                  href={selectedLead.website ? normalizeUrl(selectedLead.website) : undefined}
+                  external />
+              </div>
+
+              {/* Classification */}
+              <div className="space-y-1">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Classification</p>
+                <DetailRow icon={<Tag size={15} />}    label="Secteur" value={selectedLead.sector} />
+                <DetailRow icon={<MapPin size={15} />} label="Région"  value={selectedLead.region} />
+                <DetailRow icon={<Radar size={15} />}  label="Source"  value={selectedLead.source} />
+              </div>
+
+              {/* Statut */}
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Statut</p>
+                <select
+                  value={selectedLead.status}
+                  onChange={e => {
+                    handleStatusChange(selectedLead.id, e.target.value)
+                    setSelectedLead({ ...selectedLead, status: e.target.value })
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded-full border-0 cursor-pointer font-semibold ${STATUS_COLORS[selectedLead.status] ?? 'bg-gray-100 text-gray-600'}`}
+                >
+                  <option value="new">Nouveau</option>
+                  <option value="contacté">Contacté</option>
+                  <option value="qualifié">Qualifié</option>
+                  <option value="converti">Converti</option>
+                  <option value="perdu">Perdu</option>
+                </select>
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
     </div>
   )
 }
+
+function DetailRow({ icon, label, value, href, external }: {
+  icon: ReactNode; label: string; value?: string | null; href?: string; external?: boolean
+}) {
+  return (
+    <div className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+      <span className="text-[var(--ink-faint)] flex-shrink-0">{icon}</span>
+      <span className="text-[12px] text-gray-400 w-20 flex-shrink-0">{label}</span>
+      {value ? (
+        href ? (
+          <a href={href} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}
+            className="text-[13px] font-medium text-[var(--nova-600)] hover:underline truncate flex items-center gap-1 min-w-0">
+            <span className="truncate">{value}</span>
+            {external && <ExternalLink size={11} className="flex-shrink-0" />}
+          </a>
+        ) : (
+          <span className="text-[13px] font-medium text-gray-800 truncate">{value}</span>
+        )
+      ) : (
+        <span className="text-[13px] text-gray-300">—</span>
+      )}
+    </div>
+  )
+}
+

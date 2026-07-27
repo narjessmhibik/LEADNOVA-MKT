@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState, useRef } from 'react'
 import Sidebar from '../components/Navbar'
 import { getLeadStats } from '../services/api'
 import axios from 'axios'
@@ -40,14 +40,20 @@ function Label({ children, required }: { children: React.ReactNode; required?: b
   )
 }
 
-function SectionCard({ color, title, children, badge }: {
-  color: string; title: string; children: React.ReactNode; badge?: string
+function SectionCard({ color, icon, title, subtitle, children, badge }: {
+  color: string; icon?: React.ReactNode; title: string; subtitle?: string
+  children: React.ReactNode; badge?: string
 }) {
   return (
     <div className="card p-6">
       <div className="flex items-center gap-3 mb-5">
-        <div className={`w-1 h-6 rounded-full ${color}`} />
-        <h2 className="font-bold text-gray-900 text-[15px]">{title}</h2>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+          {icon}
+        </div>
+        <div>
+          <h2 className="font-bold text-gray-900 text-[15px]">{title}</h2>
+          {subtitle && <p className="text-[11px] text-gray-400">{subtitle}</p>}
+        </div>
         {badge && (
           <span className="ml-auto text-[11px] font-semibold bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full">
             {badge}
@@ -75,7 +81,7 @@ function EmailHtmlPreview({ subject, body, cta }: { subject?: string; body: stri
         <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
           <Mail size={15} className="text-white" />
         </div>
-        <span className="text-white font-bold text-sm tracking-wide">LeadPilot</span>
+        <span className="text-white font-bold text-sm tracking-wide">Leadnova</span>
       </div>
 
       {/* Objet */}
@@ -92,7 +98,7 @@ function EmailHtmlPreview({ subject, body, cta }: { subject?: string; body: stri
         ))}
         {cta && (
           <div className="pt-1">
-            <span className="inline-flex items-center gap-1.5 bg-indigo-600 text-white text-[13px] font-semibold px-5 py-2.5 rounded-lg shadow-sm">
+            <span className="inline-flex items-center gap-1.5 bg-[var(--nova-600)] text-white text-[13px] font-semibold px-5 py-2.5 rounded-lg shadow-sm">
               {cta} <ArrowRight size={14} />
             </span>
           </div>
@@ -101,7 +107,7 @@ function EmailHtmlPreview({ subject, body, cta }: { subject?: string; body: stri
 
       {/* Footer */}
       <div className="bg-gray-50 border-t border-gray-100 px-6 py-3 text-center">
-        <p className="text-[10px] text-gray-400">Envoyé par LeadPilot · Prospection B2B</p>
+        <p className="text-[10px] text-gray-400">Envoyé par Leadnova · Prospection B2B</p>
         <p className="text-[10px] text-gray-300 mt-0.5">Se désabonner</p>
       </div>
     </div>
@@ -116,6 +122,7 @@ export default function Campaigns() {
   const [loading, setLoading]       = useState(true)
   const [launching, setLaunching]   = useState(false)
   const [result, setResult]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const [form, setForm] = useState({
     campaign_name: '', subject: '', cta: '', ctaLink: '',
@@ -140,8 +147,35 @@ export default function Campaigns() {
 
   const isFormValid = form.subject.trim() && form.cta.trim() && form.campaign_name.trim()
 
-  const [timingResult, setTimingResult] = useState<any>(null)
+  const [timingResult, setTimingResult]   = useState<any>(null)
   const [timingLoading, setTimingLoading] = useState(false)
+
+  const [previewOneResult, setPreviewOneResult]   = useState<any | null>(null)
+  const [previewOneLoading, setPreviewOneLoading] = useState(false)
+  const [winnerDismissed, setWinnerDismissed]     = useState(false)
+  const [progress, setProgress]   = useState<any | null>(null)
+  const [activeCampaignId, setActiveCampaignId] = useState<number | null>(null)
+  const [scheduleMode, setScheduleMode] = useState(false)
+  const [scheduledAt, setScheduledAt]   = useState('')
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const previewOne = async () => {
+    setPreviewOneLoading(true)
+    try {
+      const res = await API.post('/campaigns/preview-one', {
+        segment: form.segment || 'Froid',
+        sector:  form.sector  || null,
+        subject: form.subject || null,
+        cta:     form.cta     || null,
+        tone:    form.tone    || null,
+      })
+      setPreviewOneResult(res.data)
+    } catch (e: any) {
+      setResult({ type: 'error', msg: `Aperçu rapide échoué : ${e.message}` })
+    } finally {
+      setPreviewOneLoading(false)
+    }
+  }
 
   const fetchTiming = async (segment: string, sector: string) => {
     if (!segment) return
@@ -201,8 +235,25 @@ export default function Campaigns() {
     setCompanySearch(''); setCompanySuggestions([])
   }
 
+  const startProgressPolling = (campaignId: number) => {
+    setActiveCampaignId(campaignId)
+    setProgress({ status: 'running', generated: 0, sent: 0, errors: 0, total: form.dailyLimit })
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+    progressIntervalRef.current = setInterval(async () => {
+      try {
+        const r = await API.get(`/campaigns/${campaignId}/progress`)
+        setProgress(r.data)
+        if (r.data.status === 'done') {
+          clearInterval(progressIntervalRef.current!)
+          progressIntervalRef.current = null
+          setTimeout(() => { fetchAll(); fetchEmails(1); setProgress(null) }, 2000)
+        }
+      } catch { /* Redis indisponible, on ignore */ }
+    }, 2500)
+  }
+
   const launch = async (dryRun: boolean) => {
-    setLaunching(true); setResult(null)
+    setLaunching(true); setResult(null); setProgress(null)
     try {
       const res = await API.post('/campaigns/generate-emails', {
         campaign_name: form.campaign_name, segment: form.segment || null,
@@ -212,7 +263,7 @@ export default function Campaigns() {
         lead_ids: selectedCompanies.length > 0 ? selectedCompanies.map(c => c.id) : null,
       })
       setResult({ type: 'success', msg: `"${res.data.campaign_name}" — ${res.data.limit} emails · ${dryRun ? 'Dry-run' : 'Envoi réel'}` })
-      setTimeout(() => { fetchAll(); fetchEmails(1) }, 6000)
+      if (res.data.campaign_id) startProgressPolling(res.data.campaign_id)
     } catch (e: any) {
       setResult({ type: 'error', msg: e.message })
     } finally { setLaunching(false) }
@@ -235,7 +286,7 @@ export default function Campaigns() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
 
       {/* Modal email manuel */}
@@ -268,29 +319,142 @@ export default function Campaigns() {
         </div>
       )}
 
-      <div className="ml-56 flex-1 overflow-auto min-w-0">
+      {/* Modale aperçu rapide */}
+      {previewOneResult && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-scale-in">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-[var(--nova-500)]" />
+                  <h3 className="font-bold text-gray-900">Aperçu rapide — 1 email généré</h3>
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {previewOneResult.company} · {previewOneResult.segment} · {previewOneResult.sector}
+                </p>
+              </div>
+              <button onClick={() => setPreviewOneResult(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-6 max-h-[70vh] overflow-auto">
+              <EmailHtmlPreview subject={previewOneResult.subject} body={previewOneResult.body} cta={form.cta} />
+            </div>
+            <div className="px-6 pb-5">
+              <button onClick={() => setPreviewOneResult(null)} className="btn btn-primary w-full justify-center">
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale de confirmation avant envoi */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-scale-in max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="flex justify-between items-start px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                  <Send size={18} className="text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-[15px]">Confirmer l'envoi de la campagne</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Vérifiez avant d'envoyer — l'action est définitive.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowConfirm(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Corps */}
+            <div className="p-6 overflow-auto space-y-5">
+              {/* Récapitulatif */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { lab: 'Campagne', val: form.campaign_name || '—' },
+                  { lab: 'Objet',    val: form.subject || '—' },
+                  { lab: 'Ciblage',  val: selectedCompanies.length > 0
+                      ? `${selectedCompanies.length} société(s)`
+                      : [form.segment, form.sector, form.region].filter(Boolean).join(' · ') || 'Tous les leads avec email' },
+                  { lab: 'Volume',   val: `${form.dailyLimit} emails max` },
+                ].map(({ lab, val }) => (
+                  <div key={lab} className="rounded-xl border border-[var(--border)] px-4 py-3">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{lab}</p>
+                    <p className="text-[13px] font-semibold text-gray-800 truncate" title={val}>{val}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Aperçu de l'email */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Eye size={14} className="text-[var(--nova-500)]" />
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Aperçu de l'email</p>
+                  <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--nova-600)] bg-[var(--nova-50)] px-2 py-0.5 rounded-full">
+                    <Sparkles size={10} /> Personnalisé par l'IA pour chaque destinataire
+                  </span>
+                </div>
+                <div className="max-h-[40vh] overflow-auto">
+                  <EmailHtmlPreview
+                    subject={allEmails[0]?.subject_a || form.subject}
+                    body={allEmails[0]?.body_a ||
+                      `Bonjour,\n\nJe me permets de vous contacter au sujet de votre activité.\n\n${form.subject || ''}\n\nSeriez-vous disponible pour un court échange ?`}
+                    cta={form.cta}
+                  />
+                </div>
+                {allEmails.length === 0 && (
+                  <p className="text-[11px] text-gray-400 mt-2">
+                    Modèle d'aperçu — lancez un « Aperçu » (dry-run) pour visualiser un email réel généré.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowConfirm(false)}
+                className="btn btn-secondary flex-1 justify-center">
+                Annuler
+              </button>
+              <button onClick={() => { setShowConfirm(false); launch(false) }} disabled={launching}
+                className="btn btn-primary flex-1 justify-center disabled:opacity-40">
+                <Send size={14} /> Confirmer et envoyer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 overflow-auto min-w-0">
 
         {/* Header */}
         <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-6">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Campagnes Email</h1>
+              <h1 className="text-xl font-extrabold text-gray-900 font-display tracking-tight leading-none">Campagnes</h1>
+              <p className="text-[12px] text-gray-400 mt-0.5">Génération IA, A/B testing & envoi d'emails</p>
             </div>
             {/* KPI header */}
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2.5">
               {[
                 { val: emailStats?.total_with_email?.toLocaleString('fr') ?? '—', label: 'Prospects', color: 'text-gray-900' },
-                { val: emailStats?.generated ?? 0,  label: 'Générés',  color: 'text-indigo-600' },
+                { val: emailStats?.generated ?? 0,  label: 'Versions A/B',  color: 'text-[var(--nova-600)]' },
                 { val: emailStats?.sent ?? 0,        label: 'Envoyés',  color: 'text-emerald-600' },
                 { val: `${emailStats?.open_rate ?? 0}%`,  label: 'Ouverture', color: 'text-sky-600' },
                 { val: `${emailStats?.click_rate ?? 0}%`, label: 'Clics',     color: 'text-violet-600' },
               ].map(({ val, label, color }) => (
-                <div key={label} className="text-center">
-                  <p className={`text-xl font-extrabold tabular-nums ${color}`}>{val}</p>
-                  <p className="text-[11px] text-gray-400 font-medium">{label}</p>
+                <div key={label}
+                  className="text-center px-3 py-1.5 rounded-xl border border-transparent hover:border-[var(--border-2)] hover:bg-[var(--surface-2)] hover:shadow-sm transition-all cursor-default">
+                  <p className={`text-lg font-extrabold tabular-nums leading-none ${color}`}>{val}</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-1">{label}</p>
                 </div>
               ))}
-              <button onClick={fetchAll} className="btn btn-secondary text-xs ml-2">
+              <button onClick={fetchAll} className="btn btn-secondary text-xs ml-1">
                 <RefreshCw size={13} />
               </button>
             </div>
@@ -298,6 +462,42 @@ export default function Campaigns() {
         </header>
 
         <div className="p-8 space-y-6">
+
+          {/* Barre de progression génération */}
+          {progress && progress.status === 'running' && (
+            <div className="card p-4 border-[var(--nova-200)] bg-[var(--nova-50)] animate-fade-up">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Clock size={14} className="text-[var(--nova-500)] animate-spin" />
+                  <span className="text-[13px] font-semibold text-[var(--nova-700)]">
+                    Génération en cours…
+                  </span>
+                </div>
+                <span className="text-[12px] font-bold text-[var(--nova-600)] tabular-nums">
+                  {progress.generated} / {progress.total} emails
+                </span>
+              </div>
+              <div className="w-full bg-[var(--nova-100)] rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-2 bg-[var(--nova-500)] rounded-full transition-all duration-500"
+                  style={{ width: `${progress.total > 0 ? Math.round((progress.generated / progress.total) * 100) : 0}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-1.5 text-[10px] text-[var(--nova-500)]">
+                <span>{progress.sent > 0 ? `${progress.sent} envoyés` : 'Génération IA...'}</span>
+                <span>{progress.total > 0 ? `${Math.round((progress.generated / progress.total) * 100)}%` : '0%'}</span>
+              </div>
+            </div>
+          )}
+          {progress && progress.status === 'done' && (
+            <div className="flex items-center gap-3 px-5 py-3.5 rounded-xl border bg-green-50 border-green-200 text-green-800 text-sm animate-fade-up">
+              <CheckCircle size={16} className="flex-shrink-0" />
+              <span className="font-medium">
+                Génération terminée — {progress.generated} emails générés
+                {progress.sent > 0 ? `, ${progress.sent} envoyés` : ''}
+              </span>
+            </div>
+          )}
 
           {/* Alert */}
           {result && (
@@ -326,8 +526,13 @@ export default function Campaigns() {
               {/* Créer une campagne */}
               <div className="card p-6 space-y-5">
                 <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
-                  <div className="w-1 h-6 rounded-full bg-indigo-500" />
-                  <h2 className="font-bold text-gray-900 text-[15px]">Créer une campagne</h2>
+                  <div className="w-9 h-9 rounded-xl bg-[var(--nova-50)] flex items-center justify-center flex-shrink-0">
+                    <Sparkles size={17} className="text-[var(--nova-500)]" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-gray-900 text-[15px]">Créer une campagne</h2>
+                    <p className="text-[11px] text-gray-400">Génération d'emails personnalisés par l'IA</p>
+                  </div>
                 </div>
 
                 {/* Nom */}
@@ -365,6 +570,34 @@ export default function Campaigns() {
                     value={form.ctaLink}
                     onChange={e => setForm({ ...form, ctaLink: e.target.value })} />
                 </div>
+
+                {/* Banner A/B winner */}
+                {abWinner?.winner && !winnerDismissed && (
+                  <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    <Trophy size={16} className="text-amber-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-amber-800">
+                        Version {abWinner.winner} gagnante — {abWinner.stats?.[abWinner.winner]?.open_rate}% d'ouverture
+                      </p>
+                      <p className="text-[11px] text-amber-600 mt-0.5">
+                        Utilisez ces paramètres pour votre prochaine campagne
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const winnerTone = abWinner.winner === 'A' ? 'direct et confiant' : 'éducatif et utile'
+                        setForm(f => ({ ...f, tone: winnerTone }))
+                        setWinnerDismissed(true)
+                      }}
+                      className="text-[11px] font-semibold bg-amber-500 text-white px-3 py-1.5 rounded-lg hover:bg-amber-600 flex-shrink-0">
+                      Appliquer
+                    </button>
+                    <button onClick={() => setWinnerDismissed(true)}
+                      className="text-amber-400 hover:text-amber-600 flex-shrink-0">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
 
                 {/* Ton + Segment + Secteur + Région */}
                 <div className="grid grid-cols-2 gap-3">
@@ -418,7 +651,7 @@ export default function Campaigns() {
                     <div className="absolute z-10 w-full bg-white border border-gray-100 rounded-xl shadow-lg mt-1 overflow-hidden">
                       {companySuggestions.map(lead => (
                         <div key={lead.id} onClick={() => addCompany(lead)}
-                          className="flex items-center justify-between px-4 py-2.5 hover:bg-indigo-50 cursor-pointer">
+                          className="flex items-center justify-between px-4 py-2.5 hover:bg-[var(--nova-50)] cursor-pointer">
                           <span className="text-sm font-medium text-gray-800">{lead.company}</span>
                           <span className="text-xs text-gray-400">{lead.sector}</span>
                         </div>
@@ -428,7 +661,7 @@ export default function Campaigns() {
                   {selectedCompanies.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {selectedCompanies.map(c => (
-                        <span key={c.id} className="flex items-center gap-1 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-medium">
+                        <span key={c.id} className="flex items-center gap-1 bg-[var(--nova-50)] border border-[var(--nova-100)] text-[var(--nova-700)] px-3 py-1 rounded-full text-xs font-medium">
                           {c.company}
                           <button onClick={() => setSelectedCompanies(selectedCompanies.filter(x => x.id !== c.id))}
                             className="hover:text-red-500 ml-0.5">×</button>
@@ -442,7 +675,7 @@ export default function Campaigns() {
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <Label>Volume quotidien</Label>
-                    <span className="text-[13px] font-bold text-indigo-600">{form.dailyLimit} emails/jour</span>
+                    <span className="text-[13px] font-bold text-[var(--nova-600)]">{form.dailyLimit} emails/jour</span>
                   </div>
                   <input type="range" min={1} max={300} value={form.dailyLimit}
                     onChange={e => setForm({ ...form, dailyLimit: Number(e.target.value) })}
@@ -457,13 +690,18 @@ export default function Campaigns() {
                       <AlertCircle size={12} /> Remplissez le nom, l'objet et le CTA pour lancer
                     </p>
                   )}
-                  <div className="grid grid-cols-2 gap-3 mb-2">
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    <button onClick={previewOne} disabled={previewOneLoading}
+                      className="btn btn-secondary justify-center py-2.5 disabled:opacity-40 text-[var(--nova-600)] border-[var(--nova-200)] hover:bg-[var(--nova-50)]">
+                      {previewOneLoading ? <Clock size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                      Aperçu rapide
+                    </button>
                     <button onClick={() => launch(true)} disabled={launching || !isFormValid}
                       className="btn btn-secondary justify-center py-2.5 disabled:opacity-40">
                       {launching ? <Clock size={14} className="animate-spin" /> : <Eye size={14} />}
-                      Aperçu
+                      Dry-run
                     </button>
-                    <button onClick={() => launch(false)} disabled={launching || !isFormValid}
+                    <button onClick={() => setShowConfirm(true)} disabled={launching || !isFormValid}
                       className="btn btn-primary justify-center py-2.5 disabled:opacity-40">
                       {launching ? <Clock size={14} className="animate-spin" /> : <Send size={14} />}
                       Lancer
@@ -481,8 +719,13 @@ export default function Campaigns() {
               {/* Envoyer à un contact */}
               <div className="card p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-1 h-6 rounded-full bg-emerald-500" />
-                  <h2 className="font-bold text-gray-900 text-[15px]">Envoyer à un contact</h2>
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <Send size={16} className="text-emerald-500" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-gray-900 text-[15px]">Envoyer à un contact</h2>
+                    <p className="text-[11px] text-gray-400">Email unique à une adresse précise</p>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <input className="input w-full text-sm" placeholder="Nom du contact (optionnel)"
@@ -506,12 +749,15 @@ export default function Campaigns() {
             <div className="space-y-5">
 
               {/* ML Timing */}
-              {form.segment && (
-                <div className="card p-6">
+              <div className="card p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-1 h-6 rounded-full bg-indigo-500" />
-                    <Brain size={16} className="text-indigo-500" />
-                    <h2 className="font-bold text-gray-900 text-[15px]">Meilleur moment d'envoi</h2>
+                    <div className="w-9 h-9 rounded-xl bg-[var(--nova-50)] flex items-center justify-center flex-shrink-0">
+                      <Brain size={17} className="text-[var(--nova-500)]" />
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-gray-900 text-[15px]">Meilleur moment d'envoi</h2>
+                      <p className="text-[11px] text-gray-400">Recommandation IA par segment</p>
+                    </div>
                     {timingResult?.source === 'real' && (
                       <span className="ml-auto text-[10px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600">
                         Données réelles
@@ -522,58 +768,158 @@ export default function Campaigns() {
                   {!form.segment ? (
                     <p className="text-sm text-gray-400 text-center py-4">Sélectionnez un segment pour voir les recommandations</p>
                   ) : timingLoading ? (
-                    <div className="flex items-center justify-center py-6 gap-2 text-indigo-400">
+                    <div className="flex items-center justify-center py-6 gap-2 text-[var(--nova-400)]">
                       <Clock size={16} className="animate-spin" />
                       <span className="text-sm">Analyse en cours…</span>
                     </div>
                   ) : timingResult ? (
-                    <div>
+                    <div className="space-y-4">
                       {/* Top slot */}
-                      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4">
+                      <div className="bg-[var(--nova-50)] border border-[var(--nova-100)] rounded-xl p-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <Trophy size={14} className="text-indigo-500" />
-                          <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide">Créneau optimal</span>
+                          <Trophy size={14} className="text-[var(--nova-500)]" />
+                          <span className="text-[11px] font-bold text-[var(--nova-600)] uppercase tracking-wide">Créneau optimal</span>
                         </div>
                         <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-extrabold text-indigo-700">
+                          <span className="text-2xl font-extrabold text-[var(--nova-700)]">
                             {timingResult.top_3?.[0]?.jour}
                           </span>
-                          <span className="text-xl font-bold text-indigo-500">
+                          <span className="text-xl font-bold text-[var(--nova-500)]">
                             {timingResult.top_3?.[0]?.heure}
                           </span>
-                          <span className="ml-auto text-[11px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                            Score {timingResult.top_3?.[0]?.score?.toFixed(1)}%
+                          <span className="ml-auto text-[11px] font-semibold bg-[var(--nova-100)] text-[var(--nova-700)] px-2 py-0.5 rounded-full">
+                            {timingResult.top_3?.[0]?.score?.toFixed(1)}%
                           </span>
                         </div>
                       </div>
 
                       {/* Top 3 */}
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         {timingResult.top_3?.slice(1).map((slot: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5">
+                          <div key={i} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
                             <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-semibold text-gray-400">#{i + 2}</span>
-                              <span className="text-[13px] font-semibold text-gray-800">{slot.jour}</span>
-                              <span className="text-[13px] text-gray-500">{slot.heure}</span>
+                              <span className="text-[10px] font-semibold text-gray-400">#{i + 2}</span>
+                              <span className="text-[12px] font-semibold text-gray-800">{slot.jour}</span>
+                              <span className="text-[12px] text-gray-500">{slot.heure}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-400 rounded-full" style={{ width: `${slot.score}%` }} />
+                              <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-[var(--nova-400)] rounded-full" style={{ width: `${slot.score}%` }} />
                               </div>
-                              <span className="text-[11px] text-gray-400 w-10 text-right">{slot.score?.toFixed(1)}%</span>
+                              <span className="text-[10px] text-gray-400 w-8 text-right">{slot.score?.toFixed(1)}%</span>
                             </div>
                           </div>
                         ))}
                       </div>
 
+                      {/* Heatmap 7j × 16h */}
+                      {timingResult.heatmap && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Heatmap — score par créneau</p>
+                          <div className="overflow-x-auto">
+                            <table className="text-[9px] border-collapse w-full">
+                              <thead>
+                                <tr>
+                                  <td className="pr-1 text-gray-400 w-8" />
+                                  {timingResult.hours?.map((h: number) => (
+                                    <td key={h} className="text-center text-gray-400 pb-1 w-6">{h}h</td>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {timingResult.days?.map((day: string, di: number) => (
+                                  <tr key={day}>
+                                    <td className="pr-1 text-gray-500 font-semibold text-[9px] whitespace-nowrap">{day.slice(0,3)}</td>
+                                    {timingResult.heatmap[di]?.map((score: number, hi: number) => {
+                                      const h = timingResult.hours[hi] as number
+                                      const isTop = timingResult.top_3?.[0]?.jour === day &&
+                                        timingResult.top_3?.[0]?.heure === `${String(h).padStart(2,'0')}:00`
+                                      const bg =
+                                        score >= 70 ? '#3730a3' :
+                                        score >= 55 ? '#4f46e5' :
+                                        score >= 42 ? '#818cf8' :
+                                        score >= 28 ? '#a5b4fc' :
+                                        score >= 14 ? '#e0e7ff' :
+                                                      '#f8fafc'
+                                      const textColor = score >= 42 ? 'white' : 'transparent'
+                                      return (
+                                        <td key={hi} title={`${day} ${h}h — ${score}%`}
+                                          className={`w-6 h-5 rounded-sm cursor-default text-center select-none text-[7px] font-bold leading-5 ${isTop ? 'ring-2 ring-yellow-400 ring-offset-0' : ''}`}
+                                          style={{ background: bg, color: textColor }} >
+                                          {isTop ? '★' : ''}
+                                        </td>
+                                      )
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className="flex h-2 flex-1 rounded-full overflow-hidden">
+                              {[0.05,0.2,0.4,0.6,0.8,1].map((v, i) => (
+                                <div key={i} className="flex-1" style={{ background: `rgba(99,102,241,${v})` }} />
+                              ))}
+                            </div>
+                            <span className="text-[9px] text-gray-400">Faible → Fort</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Planification */}
+                      <div className="border-t border-gray-100 pt-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[11px] font-bold text-gray-600 flex items-center gap-1.5">
+                            <Calendar size={12} /> Planifier l'envoi
+                          </p>
+                          <button onClick={() => setScheduleMode(!scheduleMode)}
+                            className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                              scheduleMode
+                                ? 'bg-[var(--nova-600)] text-white border-[var(--nova-600)]'
+                                : 'text-gray-500 border-gray-200 hover:border-[var(--nova-300)]'
+                            }`}>
+                            {scheduleMode ? 'Annuler' : 'Programmer'}
+                          </button>
+                        </div>
+                        {scheduleMode && (
+                          <div className="space-y-2">
+                            <input type="datetime-local" className="input text-xs w-full"
+                              value={scheduledAt}
+                              min={new Date().toISOString().slice(0,16)}
+                              onChange={e => setScheduledAt(e.target.value)} />
+                            <button
+                              disabled={!scheduledAt || !activeCampaignId}
+                              onClick={async () => {
+                                if (!scheduledAt || !activeCampaignId) {
+                                  setResult({ type: 'error', msg: "Lancez d'abord un Dry-run pour créer la campagne" })
+                                  return
+                                }
+                                try {
+                                  const r = await API.post(`/campaigns/${activeCampaignId}/schedule`, { scheduled_at: scheduledAt })
+                                  setResult({ type: 'success', msg: r.data.message })
+                                  setScheduleMode(false)
+                                  fetchAll()
+                                } catch (e: any) {
+                                  setResult({ type: 'error', msg: e.message })
+                                }
+                              }}
+                              className="btn btn-primary w-full justify-center text-xs py-2 disabled:opacity-40">
+                              <Calendar size={13} /> Confirmer la programmation
+                            </button>
+                            {!activeCampaignId && (
+                              <p className="text-[10px] text-amber-600">Lancez un Dry-run d'abord pour créer la campagne</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : null}
                 </div>
-              )}
 
               {/* A/B Testing */}
-              {abStats && (abStats['A'] || abStats['B']) && (
-                <SectionCard color="bg-orange-500" title="Résultats A/B Testing">
+              <SectionCard color="bg-orange-50" icon={<Zap size={17} className="text-orange-500" />} title="Résultats A/B Testing" subtitle="Comparaison des versions A / B">
+                {abStats && (abStats['A'] || abStats['B']) ? (
+                  <>
                   <div className="grid grid-cols-2 gap-3">
                     {['A', 'B'].map(v => {
                       const s = abStats[v]; if (!s) return null
@@ -609,11 +955,18 @@ export default function Campaigns() {
                       <span className="ml-auto font-bold">{Math.max(abStats['A'].open_rate, abStats['B'].open_rate)}%</span>
                     </div>
                   )}
-                </SectionCard>
-              )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center py-8 text-gray-300">
+                    <Zap size={30} className="mb-3" />
+                    <p className="text-sm font-semibold text-gray-400">Aucune donnée A/B pour l'instant</p>
+                    <p className="text-xs text-gray-400 mt-1">Lancez une campagne pour comparer les versions A et B</p>
+                  </div>
+                )}
+              </SectionCard>
 
               {/* Gagnant auto */}
-              {(abWinner?.winner || abStats?.['A'] || abStats?.['B']) && <SectionCard color="bg-amber-400" title="Gagnant auto-sélectionné" badge="après 24h">
+              {(abWinner?.winner || abStats?.['A'] || abStats?.['B']) && <SectionCard color="bg-amber-50" icon={<Trophy size={17} className="text-amber-500" />} title="Gagnant auto-sélectionné" subtitle="Sélection automatique après 24h" badge="auto">
                 <div className="flex justify-end mb-4 -mt-2">
                   <button onClick={computeWinner}
                     className="btn btn-secondary text-xs">
@@ -660,11 +1013,15 @@ export default function Campaigns() {
                   </div>
                 )}
               </SectionCard>}
+            </div>
+          </div>
 
-              {/* Emails générés */}
-              <div className="card overflow-hidden">
+          {/* Emails générés — pleine largeur */}
+          <div className="card overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
-                  <Mail size={16} className="text-indigo-500" />
+                  <div className="w-9 h-9 rounded-xl bg-[var(--nova-50)] flex items-center justify-center flex-shrink-0">
+                    <Mail size={17} className="text-[var(--nova-500)]" />
+                  </div>
                   <h2 className="font-bold text-gray-900 text-[15px]">Emails générés</h2>
                   <span className="badge badge-blue ml-1">{emailTotal}</span>
                   <div className="ml-auto flex items-center gap-2">
@@ -711,7 +1068,7 @@ export default function Campaigns() {
                         <div
                           onClick={() => { setSelectedEmail(selectedEmail?.id === email.id ? null : email); setActiveVersion('A') }}
                           className={`px-5 py-3.5 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-all ${
-                            selectedEmail?.id === email.id ? 'bg-blue-50/60 border-l-[3px] border-l-blue-500' : ''
+                            selectedEmail?.id === email.id ? 'bg-blue-50/60 border-l-[3px] border-l-[var(--nova-500)]' : ''
                           }`}>
                           <div className="flex items-center justify-between">
                             <div className="flex-1 min-w-0">
@@ -740,7 +1097,7 @@ export default function Campaigns() {
                             <div className="flex gap-2 mb-3">
                               <button onClick={() => setActiveVersion('A')}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                                  activeVersion === 'A' ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-500 hover:bg-white'
+                                  activeVersion === 'A' ? 'bg-[var(--nova-600)] text-white' : 'border border-gray-200 text-gray-500 hover:bg-white'
                                 }`}>Version A</button>
                               {email.subject_b && (
                                 <button onClick={() => setActiveVersion('B')}
@@ -778,16 +1135,19 @@ export default function Campaigns() {
                   </>
                 )}
               </div>
-            </div>
-          </div>
 
           {/* Historique */}
           {history.length > 0 && (
             <div className="card overflow-hidden animate-fade-up">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
-                <Calendar size={16} className="text-gray-400" />
-                <h2 className="font-bold text-gray-900 text-[15px]">Historique des campagnes</h2>
-                <span className="badge badge-gray">{history.length}</span>
+                <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <Calendar size={16} className="text-gray-500" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-gray-900 text-[15px]">Historique des campagnes</h2>
+                  <p className="text-[11px] text-gray-400">Toutes les campagnes lancées</p>
+                </div>
+                <span className="badge badge-gray ml-1">{history.length}</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -852,3 +1212,4 @@ export default function Campaigns() {
     </div>
   )
 }
+

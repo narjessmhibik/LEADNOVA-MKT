@@ -261,6 +261,17 @@ def process_leads_from_queue():
 
 
 # TÂCHE SCRAPING — OVERPASS API (OPENSTREETMAP)
+
+def _job_is_cancelled(job_id: int) -> bool:
+    chk = SyncSessionLocal()
+    try:
+        row = chk.query(ScrapingJob.status).filter(ScrapingJob.id == job_id).first()
+        return row is None or row[0] == "annule"
+    except Exception:
+        return False
+    finally:
+        chk.close()
+
 @celery_app.task(name="app.tasks.run_scraping_job")
 def run_scraping_job(job_id: int):
     """
@@ -281,21 +292,40 @@ def run_scraping_job(job_id: int):
         db.commit()
         logger.info(f"[SCRAPING] Job {job_id} démarré : {job.name}")
 
+        should_cancel = lambda: _job_is_cancelled(job_id)
+
         # 3. Lancer le scraper selon la source
         from app.scraper import run_scraper
         raw_leads = run_scraper(
-            source    = job.source    or "Google Maps",
-            keywords  = job.keywords  or "",
-            location  = job.location  or "",
-            sector    = job.sector    or "",
-            max_leads = job.max_leads or 50,
+            source       = job.source    or "Google Maps",
+            keywords     = job.keywords  or "",
+            location     = job.location  or "",
+            sector       = job.sector    or "",
+            max_leads    = job.max_leads or 50,
+            should_cancel = should_cancel,
         )
         logger.info(f"[SCRAPING] {len(raw_leads)} leads trouvés pour job {job_id}")
+
+        if should_cancel():
+            db.query(ScrapingJob).filter(ScrapingJob.id == job_id).update({
+                "status": "annule", "finished_at": datetime.utcnow(),
+            })
+            db.commit()
+            logger.info(f"[SCRAPING] Job {job_id} annulé après scraping")
+            return {"job_id": job_id, "status": "annule"}
 
         # 4. Insérer les leads (avec déduplication par company)
         inserted = 0
         new_leads_objs = []
-        for raw in raw_leads:
+        for i, raw in enumerate(raw_leads):
+            if i % 25 == 0 and should_cancel():
+                db.rollback()
+                db.query(ScrapingJob).filter(ScrapingJob.id == job_id).update({
+                    "status": "annule", "finished_at": datetime.utcnow(),
+                })
+                db.commit()
+                logger.info(f"[SCRAPING] Job {job_id} annulé pendant l'insertion")
+                return {"job_id": job_id, "status": "annule"}
             name = raw.get("company", "").strip()
             if not name:
                 continue
@@ -321,6 +351,15 @@ def run_scraping_job(job_id: int):
             db.add(lead)
             new_leads_objs.append(lead)
             inserted += 1
+
+        if should_cancel():
+            db.rollback()
+            db.query(ScrapingJob).filter(ScrapingJob.id == job_id).update({
+                "status": "annule", "finished_at": datetime.utcnow(),
+            })
+            db.commit()
+            logger.info(f"[SCRAPING] Job {job_id} annulé avant commit final")
+            return {"job_id": job_id, "status": "annule"}
 
         db.commit()
         # Récupérer les IDs des nouveaux leads après commit
@@ -370,13 +409,6 @@ def run_scraping_job(job_id: int):
         return {"job_id": job_id, "error": str(e)}
     finally:
         db.close()
-
-
-@celery_app.task(name="app.tasks.retrain_closing_model")
-def retrain_closing_model():
-    """Réentraîne le modèle de closing sur les vrais deals clôturés si le seuil est atteint."""
-    from app.closing_retrain import retrain_closing_on_real
-    return retrain_closing_on_real()
 
 
 # SÉLECTION AUTOMATIQUE DU GAGNANT A/B APRÈS 24H
@@ -447,6 +479,21 @@ def select_ab_winner():
         r_client = redis.Redis(host='localhost', port=6379, db=0)
         r_client.setex("ab_winner_result", 172800, json.dumps(result))
 
+        # Notification push si gagnant désigné
+        if result.get("winner"):
+            try:
+                from app.routers.notifications import push_notification
+                winner_rate = stats[result["winner"]]["open_rate"]
+                loser = "B" if result["winner"] == "A" else "A"
+                loser_rate = stats.get(loser, {}).get("open_rate", 0)
+                push_notification(
+                    "ab",
+                    f"Gagnant A/B : Version {result['winner']}",
+                    f"Version {result['winner']} : {winner_rate}% d'ouverture vs Version {loser} : {loser_rate}% — utilisez-la pour votre prochaine campagne"
+                )
+            except Exception as e:
+                logger.error(f"[AB] Notif erreur: {e}")
+
         return result
 
     except Exception as e:
@@ -484,7 +531,7 @@ def send_followup_emails():
         # Leads éligibles : email envoyé, pas ouvert, pas de relance déjà envoyée
         rows = db.execute(text("""
             SELECT id, email, company, first_name, last_name,
-                   email_subject_a, email_body_a, ab_version
+                   email_subject_a, email_body_a, ab_version, segment
             FROM leads
             WHERE email_sent = TRUE
               AND email_opened = FALSE
@@ -509,19 +556,43 @@ def send_followup_emails():
             orig_subject = row.email_subject_a or "Notre proposition"
             relance_subject = f"Re: {orig_subject}"
 
-            # Corps de relance court
-            relance_body = (
-                f"{greeting}\n\n"
-                f"Je me permets de revenir vers vous concernant mon email de la semaine dernière "
-                f"au sujet de {company}.\n\n"
-                f"Avez-vous eu l'occasion d'en prendre connaissance ? "
-                f"Je serais ravi(e) d'échanger 15 minutes avec vous pour voir comment LeadPilot "
-                f"peut vous aider concrètement.\n\n"
-                f"Répondez simplement à cet email pour convenir d'un créneau.\n\n"
-                f"Cordialement,\n"
-                f"L'équipe LeadPilot\n"
-                f"contact@leadpilot.tn | www.leadpilot.tn"
-            )
+            # Corps de relance personnalisé selon le segment
+            segment = getattr(row, 'segment', None) or "Froid"
+            if segment == "Chaud":
+                relance_body = (
+                    f"{greeting}\n\n"
+                    f"Je reviens vers vous — notre offre pour {company} est toujours disponible, "
+                    f"mais les créneaux se remplissent vite.\n\n"
+                    f"15 minutes suffisent pour voir si LeadPilot peut doubler votre pipeline ce mois-ci.\n\n"
+                    f"Répondez OUI et je vous propose un créneau dans les 24h.\n\n"
+                    f"Cordialement,\nL'équipe LeadPilot\ncontact@leadpilot.tn"
+                )
+            elif segment == "Prêts à Acheter":
+                relance_body = (
+                    f"{greeting}\n\n"
+                    f"Je voulais partager une ressource utile pour {company} : "
+                    f"notre guide '5 façons d'automatiser votre prospection B2B en 2026'.\n\n"
+                    f"Avez-vous 10 minutes cette semaine pour qu'on en discute ?\n\n"
+                    f"Cordialement,\nL'équipe LeadPilot\ncontact@leadpilot.tn"
+                )
+            elif segment == "À Risque":
+                relance_body = (
+                    f"{greeting}\n\n"
+                    f"Juste une question rapide pour {company} : "
+                    f"avez-vous des difficultés à trouver de nouveaux clients en ce moment ?\n\n"
+                    f"Répondez juste OUI ou NON — cela m'aide à comprendre si LeadPilot peut vous être utile.\n\n"
+                    f"Cordialement,\nL'équipe LeadPilot\ncontact@leadpilot.tn"
+                )
+            else:  # Froid
+                relance_body = (
+                    f"{greeting}\n\n"
+                    f"Je me permets de revenir vers vous concernant mon email de la semaine dernière "
+                    f"au sujet de {company}.\n\n"
+                    f"Avez-vous eu l'occasion d'en prendre connaissance ? "
+                    f"Je serais ravi(e) d'échanger 15 minutes avec vous.\n\n"
+                    f"Répondez simplement à cet email pour convenir d'un créneau.\n\n"
+                    f"Cordialement,\nL'équipe LeadPilot\ncontact@leadpilot.tn"
+                )
 
             to_name = f"{fname} — {company}".strip(" —") if fname else company
 

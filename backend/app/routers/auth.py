@@ -73,16 +73,14 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
         email=data.email,
         hashed_password=hash_password(data.password),
         full_name=data.full_name,
-        is_verified=False,
-        verification_token=token,
+        is_verified=True,
+        verification_token=None,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    _send_verification_email(data.email, data.full_name or data.email, token)
-
-    return {"message": "Compte créé — vérifiez votre email pour activer votre compte", "email": data.email}
+    return {"message": "Compte créé — vous pouvez vous connecter", "email": data.email}
 
 
 @router.get("/verify/{token}", response_class=HTMLResponse)
@@ -116,9 +114,7 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     if not user or not verify_password(data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Identifiants incorrects")
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Email non confirmé — vérifiez votre boîte mail")
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
     token = create_access_token({"sub": user.email})
     return {
         "access_token": token, "token_type": "bearer",

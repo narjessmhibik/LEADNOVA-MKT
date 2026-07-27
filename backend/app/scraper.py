@@ -24,13 +24,15 @@ HEADERS = {
 def scrape_google_maps(keywords, location, sector, max_leads):
     return _scrape_google_maps_playwright(keywords, location, sector, max_leads)
 
-def run_scraper(source: str, keywords: str, location: str, sector: str, max_leads: int) -> list:
+def run_scraper(source: str, keywords: str, location: str, sector: str, max_leads: int, should_cancel=None) -> list:
     """Dispatch vers le bon scraper selon la source"""
     source = (source or "").strip()
     logger.info(f"[SCRAPER] Source={source} | keywords={keywords} | location={location} | max={max_leads}")
 
     if source == "Google Maps":
-        return _scrape_google_maps_playwright(keywords, location, sector, max_leads)
+        return _scrape_google_maps_playwright(keywords, location, sector, max_leads, should_cancel=should_cancel)
+    elif source == "OpenStreetMap":
+        return _scrape_overpass(keywords, location, sector, max_leads, should_cancel=should_cancel)
     elif source == "Pages Jaunes":
         return _scrape_pages_jaunes(keywords, location, sector, max_leads)
     elif source == "Societe.com":
@@ -48,7 +50,7 @@ def run_scraper(source: str, keywords: str, location: str, sector: str, max_lead
     elif source == "Foursquare":
         return _scrape_foursquare(keywords, location, sector, max_leads)
     else:
-        return _scrape_overpass(keywords, location, sector, max_leads)
+        return _scrape_overpass(keywords, location, sector, max_leads, should_cancel=should_cancel)
 
 
 # SOURCE 1 — GOOGLE MAPS via Overpass API (OpenStreetMap)
@@ -189,7 +191,7 @@ def _detect_sector(amenity, shop, office, tourism):
     if office == "it":                                        return "Informatique & Tech"
     return "Services aux entreprises"
 
-def _scrape_google_maps_playwright(keywords, location, sector, max_leads):
+def _scrape_google_maps_playwright(keywords, location, sector, max_leads, should_cancel=None):
     """
     Scraping Google Maps via Playwright — données riches + pipeline email.
     Fallback vers Overpass si Playwright non disponible.
@@ -198,10 +200,30 @@ def _scrape_google_maps_playwright(keywords, location, sector, max_leads):
         from playwright.sync_api import sync_playwright
     except ImportError:
         logger.warning("[Google Maps] Playwright non installé fallback Overpass")
-        return _scrape_overpass(keywords, location, sector, max_leads)
+        return _scrape_overpass(keywords, location, sector, max_leads, should_cancel=should_cancel)
 
-    # La recherche combine mots-clés + secteur + localisation
-    search_query = " ".join(p for p in [keywords or "", sector or "", location or ""] if p).strip()
+    # Traduction des secteurs (libellés abstraits) en termes recherchables sur Google Maps
+    SECTOR_GM_TERMS = {
+        "Restauration & Hôtellerie": "restaurant hôtel",
+        "Culture & Musées":          "musée",
+        "Informatique & Tech":       "société informatique",
+        "Santé":                     "clinique médecin",
+        "Finance & Comptabilité":    "banque cabinet comptable",
+        "Construction & BTP":        "entreprise de construction",
+        "Immobilier":                "agence immobilière",
+        "Education & Formation":     "école centre de formation",
+        "Transport & Logistique":    "société de transport",
+        "Commerce & Distribution":   "magasin commerce",
+        "Industrie & Production":    "usine industrie",
+        "Services aux entreprises":  "société de services",
+        "Agriculture & Alimentaire": "exploitation agricole agroalimentaire",
+        "Energie & Environnement":   "énergie environnement",
+        "Juridique":                 "cabinet d'avocats",
+        "Marketing & Communication": "agence de communication marketing",
+    }
+    # Le mot-clé est prioritaire ; sinon on traduit le secteur en terme concret
+    base = (keywords or "").strip() or SECTOR_GM_TERMS.get(sector or "", (sector or "").strip())
+    search_query = " ".join(p for p in [base, (location or "").strip()] if p).strip()
     if not search_query:
         search_query = "entreprises"
     logger.info(f"[Google Maps] Playwright search: {search_query}")
@@ -253,6 +275,8 @@ def _scrape_google_maps_playwright(keywords, location, sector, max_leads):
             logger.info(f"[Google Maps] {len(entries)} listings à traiter")
 
             for idx, (link, aria_name) in enumerate(entries):
+                if should_cancel and should_cancel():
+                    break
                 try:
                     name = aria_name
                     # Ouvrir le détail et ATTENDRE que le panneau soit chargé
@@ -338,7 +362,7 @@ def _scrape_google_maps_playwright(keywords, location, sector, max_leads):
 
     except Exception as e:
         logger.error(f"[Google Maps] Playwright erreur: {e} fallback Overpass")
-        return _scrape_overpass(keywords, location, sector, max_leads)
+        return _scrape_overpass(keywords, location, sector, max_leads, should_cancel=should_cancel)
 
     logger.info(f"[Google Maps] {len(leads)} leads collectés")
     return leads
@@ -447,7 +471,7 @@ def _gm_detect_sector(place_type: str) -> str:
     return "Services aux entreprises"
 
 
-def _scrape_overpass(keywords, location, sector, max_leads):
+def _scrape_overpass(keywords, location, sector, max_leads, should_cancel=None):
     lat, lon = _geocode(location or "Tunis")
     time.sleep(1)
     tags = _get_tags(keywords or "", sector or "")
@@ -467,6 +491,8 @@ def _scrape_overpass(keywords, location, sector, max_leads):
 
     leads = []
     for el in data.get("elements", []):
+        if should_cancel and should_cancel():
+            break
         t = el.get("tags", {})
         name = t.get("name") or t.get("name:fr") or t.get("name:ar")
         if not name: continue

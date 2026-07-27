@@ -24,15 +24,48 @@ FEATURE_COLUMNS = [
     "email_quality", "email_confidence", "has_sector", "sector_score", "has_description", "company_type_score",
 ]
 
+SOURCE_SCORES = {
+    "linkedin_ceo":       1.0,
+    "linkedin":           1.0,
+    "startup_tunisia":    0.85,
+    "google_maps":        0.75,
+    "openstreetmap":      0.75,
+    "manual":             0.70,
+    "pages_jaunes_maroc": 0.65,
+    "tunisieindex":       0.65,
+    "tunidex":            0.65,
+    "scraping":           0.65,
+}
+
 SECTOR_SCORES = {
-    "Informatique & Tech": 1.0, "Finance & Comptabilite": 0.90,
-    "Sante": 0.85, "Juridique": 0.85,
-    "Marketing & Communication": 0.80, "Services aux entreprises": 0.75,
-    "Immobilier": 0.75, "Construction & BTP": 0.70,
-    "Transport & Logistique": 0.70, "Education & Formation": 0.65,
-    "Commerce & Distribution": 0.65, "Industrie & Production": 0.65,
-    "Agriculture & Alimentaire": 0.60, "Energie & Environnement": 0.60,
-    "Restauration & Hotellerie": 0.55,
+    # Secteurs prioritaires (note maximale)
+    "Culture & Musées":           1.0,
+    "Culture & Patrimoine":       1.0,
+    "Education & Formation":      1.0,
+    "Informatique & Tech":        1.0,
+    "Finance & Comptabilité":     0.90,
+    "Finance & Comptabilite":     0.90,  # variante sans accent (legacy DB)
+    "Santé":                      0.85,
+    "Sante":                      0.85,  # variante sans accent (legacy DB)
+    "Juridique":                  0.85,
+    "Sécurité":                   0.85,
+    "Marketing & Communication":  0.80,
+    "Management & Conseil":       0.80,
+    "Services aux entreprises":   0.75,
+    "Architecture & Urbanisme":   0.75,
+    "Immobilier":                 0.75,
+    "Construction & BTP":         0.70,
+    "Transport & Logistique":     0.70,
+    "Logistique & Transport":     0.70,  # variante (legacy DB)
+    "Commerce & Distribution":    0.65,
+    "Industrie & Production":     0.65,
+    "Agriculture & Alimentaire":  0.60,
+    "Energie & Environnement":    0.60,
+    "Tourisme & Loisirs":         0.55,
+    "Tourisme & Voyages":         0.55,
+    "Mode & Accessoires":         0.55,
+    "Restauration & Hôtellerie":  0.55,
+    "Restauration & Hotellerie":  0.55,  # variante sans accent (legacy DB)
 }
 EMAIL_ROLE_SCORES = {
     "ceo": 1.0, "founder": 0.95, "pdg": 0.90, "dg": 0.85,

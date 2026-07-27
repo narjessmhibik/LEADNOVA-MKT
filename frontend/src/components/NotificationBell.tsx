@@ -20,6 +20,9 @@ const TYPE_META: Record<string, { icon: any; color: string; bg: string }> = {
 }
 
 function timeAgo(iso: string) {
+  // Le backend renvoie de l'UTC naïf (sans suffixe Z) → forcer l'interprétation UTC
+  // sinon "il y a 2 min" s'affichait "il y a 2h" (décalage du fuseau local).
+  if (iso && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z'
   const d = new Date(iso).getTime()
   const diff = Math.floor((Date.now() - d) / 1000)
   if (diff < 60)    return "à l'instant"
@@ -91,9 +94,9 @@ export default function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+        className="relative w-9 h-9 rounded-lg bg-[var(--surface-3)] hover:bg-[var(--nova-50)] flex items-center justify-center transition-colors"
       >
-        <Bell size={16} className="text-slate-200" />
+        <Bell size={16} className="text-[var(--ink-soft)]" />
         {unread > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
             {unread > 9 ? '9+' : unread}

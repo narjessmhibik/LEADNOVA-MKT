@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Sidebar from '../components/Navbar'
 import {
   User, Shield, Bell, Camera, Check, X,
@@ -13,13 +13,11 @@ const TABS = [
 ]
 
 const NOTIF_ITEMS = [
-  { key: 'lead',   title: 'Nouveau lead collecté', desc: 'Notification à chaque nouveau lead scrapé',   icon: Sparkles,      color: 'text-indigo-500', bg: 'bg-indigo-50' },
-  { key: 'camp',   title: 'Campagne terminée',      desc: 'Être notifié quand une campagne se termine',   icon: Megaphone,     color: 'text-sky-500',    bg: 'bg-sky-50'    },
-  { key: 'risk',   title: 'Deal à risque',          desc: "Alerte quand un deal est à risque selon l'IA", icon: AlertTriangle, color: 'text-rose-500',   bg: 'bg-rose-50'   },
-  { key: 'report', title: 'Rapport hebdomadaire',   desc: 'Rapport de performance chaque lundi matin',    icon: FileBarChart,  color: 'text-emerald-500',bg: 'bg-emerald-50'},
+  { key: 'lead',   title: 'Nouveau lead collecté', desc: 'Notification à chaque nouveau lead scrapé',   icon: Sparkles,  color: 'text-[var(--nova-500)]', bg: 'bg-[var(--nova-50)]' },
+  { key: 'camp',   title: 'Campagne terminée',      desc: 'Être notifié quand une campagne se termine',   icon: Megaphone, color: 'text-sky-500',    bg: 'bg-sky-50'    },
 ]
 
-const NOTIF_DEFAULTS = { lead: true, camp: true, risk: true, report: true }
+const NOTIF_DEFAULTS = { lead: true, camp: true }
 
 function loadNotifs(): Record<string, boolean> {
   try {
@@ -29,16 +27,17 @@ function loadNotifs(): Record<string, boolean> {
 }
 
 export default function Parametres() {
+  const store = localStorage.getItem('token') ? localStorage : sessionStorage
   const [activeTab, setActiveTab]   = useState('profil')
-  const [avatar, setAvatar]         = useState<string | null>(localStorage.getItem('avatar'))
+  const [avatar, setAvatar]         = useState<string | null>(store.getItem('avatar'))
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
 
   const [form, setForm] = useState({
-    prenom: localStorage.getItem('prenom') || '',
-    nom:    localStorage.getItem('nom')    || '',
-    email:  localStorage.getItem('email') || '',
-    poste:  localStorage.getItem('poste') || '',
-    telephone: localStorage.getItem('telephone') || '',
+    prenom: store.getItem('prenom') || '',
+    nom:    store.getItem('nom')    || '',
+    email:  store.getItem('email') || '',
+    poste:  store.getItem('poste') || '',
+    telephone: store.getItem('telephone') || '',
   })
 
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' })
@@ -56,7 +55,7 @@ export default function Parametres() {
     reader.onloadend = () => {
       const b64 = reader.result as string
       setAvatar(b64)
-      localStorage.setItem('avatar', b64)
+      store.setItem('avatar', b64)
     }
     reader.readAsDataURL(file)
   }
@@ -64,18 +63,19 @@ export default function Parametres() {
   //  Profil save
   const handleSaveProfil = async () => {
     setSaveStatus('saving')
-    // Sauvegarde locale immédiate
-    Object.entries(form).forEach(([k, v]) => localStorage.setItem(k, v))
-    // Tentative API (non bloquante)
+    Object.entries(form).forEach(([k, v]) => store.setItem(k, v))
     try {
-      const token = localStorage.getItem('token')
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/auth/me`, {
+      const token = store.getItem('token')
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/auth/me`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ full_name: `${form.prenom} ${form.nom}`, email: form.email }),
+        body: JSON.stringify({ full_name: `${form.prenom} ${form.nom}`.trim() }),
       })
-    } catch { /* API indisponible — sauvegarde locale suffisante */ }
-    setSaveStatus('success')
+      if (!res.ok) throw new Error('save failed')
+      setSaveStatus('success')
+    } catch {
+      setSaveStatus('error')
+    }
     setTimeout(() => setSaveStatus('idle'), 3000)
   }
 
@@ -108,13 +108,13 @@ export default function Parametres() {
   const initials = `${form.prenom?.[0] || ''}${form.nom?.[0] || ''}` || '?'
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
-      <div className="ml-64 flex-1 overflow-auto">
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 overflow-auto">
 
         {/* Header */}
         <div className="bg-white px-8 py-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-900">Paramètres</h1>
+          <h1 className="text-2xl font-extrabold text-gray-900 font-display tracking-tight">Réglages</h1>
           <p className="text-gray-500 text-sm mt-1">Gérez vos préférences et votre compte</p>
         </div>
 
@@ -129,7 +129,7 @@ export default function Parametres() {
                   onClick={() => setActiveTab(id)}
                   className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl mb-1 text-sm text-left transition-all ${
                     activeTab === id
-                      ? 'bg-blue-600 text-white font-medium shadow-sm'
+                      ? 'bg-[var(--nova-600)] text-white font-medium shadow-sm'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
@@ -157,7 +157,7 @@ export default function Parametres() {
                           : <span>{initials}</span>
                         }
                       </div>
-                      <label className="absolute -bottom-1 -right-1 bg-blue-600 rounded-full p-1.5 cursor-pointer shadow hover:bg-blue-700 transition-colors">
+                      <label className="absolute -bottom-1 -right-1 bg-[var(--nova-600)] rounded-full p-1.5 cursor-pointer shadow hover:bg-[var(--nova-700)] transition-colors">
                         <Camera size={12} className="text-white" />
                         <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
                       </label>
@@ -182,7 +182,7 @@ export default function Parametres() {
                         value={form.prenom}
                         onChange={e => setForm({ ...form, prenom: e.target.value })}
                         placeholder="Votre prénom"
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[var(--nova-500)] focus:ring-2 focus:ring-[var(--nova-100)] transition-all"
                       />
                     </div>
                     <div>
@@ -191,7 +191,7 @@ export default function Parametres() {
                         value={form.nom}
                         onChange={e => setForm({ ...form, nom: e.target.value })}
                         placeholder="Votre nom"
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[var(--nova-500)] focus:ring-2 focus:ring-[var(--nova-100)] transition-all"
                       />
                     </div>
                   </div>
@@ -204,7 +204,7 @@ export default function Parametres() {
                       value={form.email}
                       onChange={e => setForm({ ...form, email: e.target.value })}
                       placeholder="votre@email.com"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[var(--nova-500)] focus:ring-2 focus:ring-[var(--nova-100)] transition-all"
                     />
                   </div>
 
@@ -217,7 +217,7 @@ export default function Parametres() {
                         value={form.poste}
                         onChange={e => setForm({ ...form, poste: e.target.value })}
                         placeholder="Directeur commercial..."
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[var(--nova-500)] focus:ring-2 focus:ring-[var(--nova-100)] transition-all"
                       />
                     </div>
                     <div>
@@ -228,7 +228,7 @@ export default function Parametres() {
                         value={form.telephone}
                         onChange={e => setForm({ ...form, telephone: e.target.value })}
                         placeholder="+216 XX XXX XXX"
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[var(--nova-500)] focus:ring-2 focus:ring-[var(--nova-100)] transition-all"
                       />
                     </div>
                   </div>
@@ -237,7 +237,7 @@ export default function Parametres() {
                     <button
                       onClick={handleSaveProfil}
                       disabled={saveStatus === 'saving'}
-                      className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors"
+                      className="bg-[var(--nova-600)] text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[var(--nova-700)] disabled:opacity-60 transition-colors"
                     >
                       {saveStatus === 'saving' ? 'Sauvegarde...' : 'Sauvegarder'}
                     </button>
@@ -267,27 +267,30 @@ export default function Parametres() {
                         <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Mot de passe actuel</label>
                         <input
                           type="password"
+                          autoComplete="current-password"
                           value={passwords.current}
                           onChange={e => setPasswords({ ...passwords, current: e.target.value })}
-                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white transition-all"
+                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[var(--nova-500)] focus:ring-2 focus:ring-[var(--nova-100)] bg-white transition-all"
                         />
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Nouveau mot de passe</label>
                         <input
                           type="password"
+                          autoComplete="new-password"
                           value={passwords.next}
                           onChange={e => setPasswords({ ...passwords, next: e.target.value })}
-                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white transition-all"
+                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[var(--nova-500)] focus:ring-2 focus:ring-[var(--nova-100)] bg-white transition-all"
                         />
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Confirmer le mot de passe</label>
                         <input
                           type="password"
+                          autoComplete="new-password"
                           value={passwords.confirm}
                           onChange={e => setPasswords({ ...passwords, confirm: e.target.value })}
-                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white transition-all"
+                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[var(--nova-500)] focus:ring-2 focus:ring-[var(--nova-100)] bg-white transition-all"
                         />
                       </div>
                     </div>
@@ -296,7 +299,7 @@ export default function Parametres() {
                   <div className="flex items-center gap-4 pt-2">
                     <button
                       onClick={handleSavePassword}
-                      className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+                      className="bg-[var(--nova-600)] text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[var(--nova-700)] transition-colors"
                     >
                       Modifier le mot de passe
                     </button>
@@ -327,7 +330,7 @@ export default function Parametres() {
                       <h2 className="text-lg font-bold text-gray-900">Notifications</h2>
                       <p className="text-gray-500 text-sm mt-0.5">Choisissez les alertes à recevoir</p>
                     </div>
-                    <span className="text-xs font-semibold bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full">
+                    <span className="text-xs font-semibold bg-[var(--nova-50)] text-[var(--nova-600)] px-3 py-1.5 rounded-full">
                       {activeNotifsCount}/{NOTIF_ITEMS.length} activées
                     </span>
                   </div>
@@ -340,7 +343,7 @@ export default function Parametres() {
                           key={key}
                           onClick={() => toggleNotif(key)}
                           className={`flex items-center justify-between rounded-xl p-4 cursor-pointer border transition-all ${
-                            on ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-100 bg-white hover:bg-gray-50'
+                            on ? 'border-[var(--nova-200)] bg-[var(--nova-50)]' : 'border-gray-100 bg-white hover:bg-gray-50'
                           }`}
                         >
                           <div className="flex items-center gap-3.5">
@@ -352,17 +355,12 @@ export default function Parametres() {
                               <p className="text-gray-400 text-xs mt-0.5">{desc}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            <span className={`text-[11px] font-bold uppercase tracking-wide w-12 text-right ${on ? 'text-indigo-600' : 'text-gray-300'}`}>
-                              {on ? 'Activé' : 'Inactif'}
-                            </span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleNotif(key) }}
-                              className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${on ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                            >
-                              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${on ? 'translate-x-7' : 'translate-x-1'}`} />
-                            </button>
-                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleNotif(key) }}
+                            className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${on ? 'bg-[var(--nova-600)]' : 'bg-gray-200'}`}
+                          >
+                            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
                         </div>
                       )
                     })}
@@ -371,7 +369,7 @@ export default function Parametres() {
                   <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
                     <button
                       onClick={handleSaveNotifs}
-                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
+                      className="bg-[var(--nova-600)] text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[var(--nova-700)] transition-colors"
                     >
                       Sauvegarder
                     </button>
@@ -392,3 +390,4 @@ export default function Parametres() {
     </div>
   )
 }
+

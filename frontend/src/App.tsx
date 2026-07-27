@@ -4,8 +4,6 @@ import Dashboard from './pages/Dashboard'
 import Leads from './pages/Leads'
 import Campaigns from './pages/Campaigns'
 import Scraping from './pages/Scraping'
-import CRM from './pages/CRM'
-import Ventes from './pages/Ventes'
 import Automation from './pages/Automation'
 import Rapports from './pages/Rapports'
 import Parametres from './pages/Parametres'
@@ -31,12 +29,6 @@ function App() {
         } />
         <Route path="/scraping" element={
           <PrivateRoute><Scraping /></PrivateRoute>
-        } />
-        <Route path="/crm" element={
-          <PrivateRoute><CRM /></PrivateRoute>
-        } />
-        <Route path="/ventes" element={
-          <PrivateRoute><Ventes /></PrivateRoute>
         } />
         <Route path="/automation" element={
           <PrivateRoute><Automation /></PrivateRoute>

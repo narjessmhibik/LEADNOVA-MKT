@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+﻿import { useEffect, useState, useRef } from 'react'
 import Sidebar from '../components/Navbar'
 import { getLeadStats } from '../services/api'
 import API from '../services/api'
@@ -116,9 +116,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 //  Skeleton
 function DashboardSkeleton() {
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
-      <div className="ml-56 flex-1 overflow-auto p-8">
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 overflow-auto p-8">
         <div className="skeleton h-8 w-64 mb-2" />
         <div className="skeleton h-4 w-48 mb-8" />
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6 stagger">
@@ -166,35 +166,33 @@ export default function Dashboard() {
   const contacted = (statusMap['contacté'] ?? 0) + (statusMap['qualifié'] ?? 0) + (statusMap['converti'] ?? 0)
   const qualified  = (statusMap['qualifié'] ?? 0) + (statusMap['converti'] ?? 0)
   const converted  = statusMap['converti'] ?? 0
-  const funnelSteps = [
-    { label: 'Leads Scrapés', sublabel: 'Total collecté', value: total, color: '#6366f1', pct: 100 },
-    { label: 'Contactés (MQL)', sublabel: 'Email envoyé', value: contacted, color: '#7c3aed', pct: total ? Math.round(contacted / total * 100) : 0 },
-    { label: 'Qualifiés (SQL)', sublabel: 'Statut qualifié', value: qualified, color: '#f59e0b', pct: total ? Math.round(qualified / total * 100) : 0 },
-    { label: 'Clients', sublabel: 'Convertis', value: converted, color: '#10b981', pct: total ? Math.round(converted / total * 100) : 0 },
+  const funnelRaw = [
+    { label: 'Leads Scrapés', sublabel: 'Total collecté', value: total, color: '#6366f1' },
+    { label: 'Contactés (MQL)', sublabel: 'Email envoyé', value: contacted, color: '#7c3aed' },
+    { label: 'Qualifiés (SQL)', sublabel: 'Statut qualifié', value: qualified, color: '#f59e0b' },
+    { label: 'Clients', sublabel: 'Convertis', value: converted, color: '#10b981' },
   ]
+  const funnelSteps = funnelRaw.map((s, i) => {
+    const prev = i === 0 ? s.value : funnelRaw[i - 1].value
+    return {
+      ...s,
+      pct: i === 0 ? 100 : (prev ? Math.round((s.value / prev) * 100) : 0),
+      barPct: total ? (s.value / total) * 100 : 0,
+    }
+  })
 
-  //  Alertes IA
-  const alerts: { type: 'warning' | 'info' | 'success'; msg: string; Icon: any }[] = []
-  const aRisque = stats?.segments?.['A Risque'] ?? 0
-  const chauds  = stats?.segments?.Chaud ?? 0
-  if (aRisque > 300)
-    alerts.push({ type: 'warning', msg: `${aRisque.toLocaleString('fr')} leads "À Risque" détectés — lancez une campagne de réactivation`, Icon: AlertTriangle })
-  if ((stats?.stale_leads ?? 0) > 200)
-    alerts.push({ type: 'info', msg: `${(stats?.stale_leads ?? 0).toLocaleString('fr')} leads sans mise à jour depuis 6 mois — re-scraping recommandé`, Icon: Clock })
-  if (chauds > 100 && contacted < chauds)
-    alerts.push({ type: 'success', msg: `${chauds.toLocaleString('fr')} leads "Chauds" prêts à être contactés — opportunité commerciale immédiate`, Icon: Zap })
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[var(--bg)]">
       <Sidebar />
 
-      <div className="ml-56 flex-1 overflow-auto min-w-0">
+      <div className="ml-[var(--sidebar-w)] flex-1 transition-[margin-left] duration-200 overflow-auto min-w-0">
 
         {/* Header */}
         <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Vue d'ensemble</h1>
+              <h1 className="text-xl font-extrabold text-gray-900 font-display tracking-tight">Vue d'ensemble</h1>
               <p className="text-[12px] text-gray-400 mt-0.5">
                 Mis à jour {lastUpdate.toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' })}
                 {stats?.stale_leads ? (
@@ -288,7 +286,7 @@ export default function Dashboard() {
           <div className="grid xl:grid-cols-2 gap-6">
 
             {/* Pie segmentation */}
-            <ChartCard title="Segmentation K-Means" subtitle="Répartition intelligente par IA">
+            <ChartCard title="Segmentation" subtitle="Répartition intelligente par IA">
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie data={segData} cx="50%" cy="50%" innerRadius={55} outerRadius={90}
@@ -333,6 +331,25 @@ export default function Dashboard() {
                 </AreaChart>
               </ResponsiveContainer>
             </ChartCard>
+          </div>
+
+          {/* KPIs Scraping temporels */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Scrappés aujourd'hui", value: stats?.scraped_today ?? 0,  color: 'text-blue-600',  bg: 'bg-blue-50'  },
+              { label: "Cette semaine",         value: stats?.scraped_week  ?? 0,  color: 'text-violet-600',bg: 'bg-violet-50'},
+              { label: "Ce mois",               value: stats?.scraped_month ?? 0,  color: 'text-green-600', bg: 'bg-green-50' },
+            ].map(({ label, value, color, bg }) => (
+              <div key={label} className="card p-5 flex items-center gap-4 animate-fade-up">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bg}`}>
+                  <Activity size={18} className={color} />
+                </div>
+                <div>
+                  <p className={`text-2xl font-extrabold tabular-nums ${color}`}>{value.toLocaleString('fr')}</p>
+                  <p className="text-[12px] text-gray-400 font-medium">{label}</p>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Charts row 2 */}
@@ -390,106 +407,41 @@ export default function Dashboard() {
           {/* Sources de Leads */}
           <ChartCard title="Sources de Leads">
             <div className="space-y-3">
-              {stats?.sources.map(({ source, count }, i) => {
-                const pct = total ? Math.round((count / total) * 100) : 0
-                return (
-                  <div key={source}>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                        <span className="text-[13px] font-medium text-gray-700 capitalize">
-                          {source.replace(/_/g, ' ')}
+              {(() => {
+                const raw = stats?.sources ?? []
+                const pjmCount = raw.find((s: any) => s.source.toLowerCase().includes('pages jaunes') || s.source.toLowerCase().includes('pages_jaunes'))?.count ?? 0
+                const merged = raw
+                  .filter((s: any) => !s.source.toLowerCase().includes('pages jaunes') && !s.source.toLowerCase().includes('pages_jaunes'))
+                  .map((s: any) => s.source.toLowerCase().includes('scraping') ? { ...s, count: s.count + pjmCount } : s)
+                return merged.map(({ source, count }: any, i: number) => {
+                  const pct = total ? Math.round((count / total) * 100) : 0
+                  return (
+                    <div key={source}>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                          <span className="text-[13px] font-medium text-gray-700 capitalize">
+                            {source.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <span className="text-[13px] font-bold text-gray-900">
+                          {count.toLocaleString('fr')} <span className="text-gray-400 font-normal text-xs">({pct}%)</span>
                         </span>
                       </div>
-                      <span className="text-[13px] font-bold text-gray-900">
-                        {count.toLocaleString('fr')} <span className="text-gray-400 font-normal text-xs">({pct}%)</span>
-                      </span>
+                      <div className="progress-bar">
+                        <div className="progress-fill" style={{ width: `${pct}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      </div>
                     </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${pct}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+              })()}
             </div>
           </ChartCard>
 
-          {/* KPIs Scraping temporels */}
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: "Scrappés aujourd'hui", value: stats?.scraped_today ?? 0,  color: 'text-blue-600',  bg: 'bg-blue-50'  },
-              { label: "Cette semaine",         value: stats?.scraped_week  ?? 0,  color: 'text-violet-600',bg: 'bg-violet-50'},
-              { label: "Ce mois",               value: stats?.scraped_month ?? 0,  color: 'text-green-600', bg: 'bg-green-50' },
-            ].map(({ label, value, color, bg }) => (
-              <div key={label} className="card p-5 flex items-center gap-4 animate-fade-up">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bg}`}>
-                  <Activity size={18} className={color} />
-                </div>
-                <div>
-                  <p className={`text-2xl font-extrabold tabular-nums ${color}`}>{value.toLocaleString('fr')}</p>
-                  <p className="text-[12px] text-gray-400 font-medium">{label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Alertes */}
-          {alerts.length > 0 && (
-            <div className="space-y-3 animate-fade-up">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-1 h-5 rounded-full bg-amber-500" />
-                <h3 className="font-bold text-gray-800 text-[15px]">Alertes</h3>
-              </div>
-              {alerts.map(({ type, msg, Icon }, i) => {
-                const cfg = {
-                  warning: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', icon: 'text-amber-500' },
-                  info:    { bg: 'bg-blue-50 border-blue-200',   text: 'text-blue-800',  icon: 'text-blue-500'  },
-                  success: { bg: 'bg-green-50 border-green-200', text: 'text-green-800', icon: 'text-green-500' },
-                }[type]
-                return (
-                  <div key={i} className={`flex items-center px-4 py-3 rounded-xl border ${cfg.bg}`}>
-                    <p className={`text-[13px] font-medium ${cfg.text}`}>{msg}</p>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Vue Funnel */}
-          <ChartCard title="Funnel de conversion" subtitle="Scraping MQL SQL Client">
-            <div className="space-y-3 pt-2">
-              {funnelSteps.map(({ label, sublabel, value, color, pct }, i) => (
-                <div key={label} className="flex items-center gap-4">
-                  <div className="w-36 flex-shrink-0 text-right">
-                    <p className="text-[13px] font-semibold text-gray-700">{label}</p>
-                    <p className="text-[11px] text-gray-400">{sublabel}</p>
-                  </div>
-                  <div className="flex-1 relative h-9 bg-gray-100 rounded-lg overflow-hidden">
-                    <div
-                      className="h-full rounded-lg flex items-center pl-3 transition-all duration-700"
-                      style={{ width: `${Math.max(pct, 2)}%`, background: color }}
-                    >
-                      <span className="text-white text-[12px] font-bold whitespace-nowrap">
-                        {value.toLocaleString('fr')}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-12 flex-shrink-0 text-right">
-                    <span className="text-[13px] font-bold" style={{ color }}>{pct}%</span>
-                  </div>
-                  {i < funnelSteps.length - 1 && (
-                    <TrendingDown size={14} className="text-gray-300 flex-shrink-0" />
-                  )}
-                  {i === funnelSteps.length - 1 && (
-                    <CheckCircle size={14} className="text-green-400 flex-shrink-0" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </ChartCard>
 
         </div>
       </div>
     </div>
   )
 }
+

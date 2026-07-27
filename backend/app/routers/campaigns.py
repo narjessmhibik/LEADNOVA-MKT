@@ -100,15 +100,28 @@ async def get_ml_timing(
 
     best = top3_list[0]
 
+    # Heatmap complète 7j × 16h
+    heatmap = []
+    for d in range(7):
+        row_scores = []
+        for h in range(6, 22):
+            mask = (grid["jour"] == d) & (grid["heure"] == h)
+            score_val = float(grid.loc[mask, "score"].values[0]) * 100
+            row_scores.append(round(score_val, 1))
+        heatmap.append(row_scores)
+
     return {
-        "segment":        segment,
-        "secteur":        secteur,
-        "meilleur_jour":  best["jour"],
+        "segment":         segment,
+        "secteur":         secteur,
+        "meilleur_jour":   best["jour"],
         "meilleure_heure": best["heure"],
-        "score":          best["score"],
-        "top_3":          top3_list,
-        "source":         source,
-        "real_opens":     real_opens,
+        "score":           best["score"],
+        "top_3":           top3_list,
+        "source":          source,
+        "real_opens":      real_opens,
+        "heatmap":         heatmap,
+        "hours":           list(range(6, 22)),
+        "days":            JOURS_LABEL,
         "message": (
             f"Basé sur {real_opens} ouvertures réelles"
             if source == "real"
@@ -119,12 +132,45 @@ async def get_ml_timing(
 
 @router.get("/history")
 async def get_campaign_history(db: AsyncSession = Depends(get_db)):
-    """Historique des campagnes triées par date"""
+    """Historique des campagnes avec leurs stats d'ouverture et clic"""
+    from datetime import timedelta
     result = await db.execute(
         select(Campaign).order_by(Campaign.created_at.desc()).limit(20)
     )
     campaigns = result.scalars().all()
-    return campaigns
+
+    history = []
+    for c in campaigns:
+        window_end = (c.created_at or datetime.utcnow()) + timedelta(hours=12)
+        q = text("""
+            SELECT
+                COUNT(*) FILTER (WHERE email_sent = TRUE)    AS sent,
+                COUNT(*) FILTER (WHERE email_opened = TRUE)  AS opened,
+                COUNT(*) FILTER (WHERE email_clicked = TRUE) AS clicked
+            FROM leads
+            WHERE email_sent_at BETWEEN :start AND :end
+              AND (:seg IS NULL OR segment = :seg)
+        """)
+        stats_row = (await db.execute(q, {
+            "start": c.created_at, "end": window_end, "seg": c.segment_filter
+        })).one()
+        sent    = stats_row.sent    or 0
+        opened  = stats_row.opened  or 0
+        clicked = stats_row.clicked or 0
+        history.append({
+            "id": c.id, "name": c.name, "campaign_name": c.campaign_name,
+            "subject": c.subject, "status": c.status, "campaign_status": c.campaign_status,
+            "channel": c.channel, "leads_targeted": c.leads_targeted,
+            "segment_filter": c.segment_filter, "sector_filter": c.sector_filter,
+            "region_filter": c.region_filter, "tone": c.tone, "cta": c.cta,
+            "created_at": c.created_at, "scheduled_at": c.scheduled_at,
+            "stats": {
+                "sent": sent, "opened": opened, "clicked": clicked,
+                "open_rate":  round(opened  / sent * 100, 1) if sent > 0 else 0,
+                "click_rate": round(clicked / sent * 100, 1) if sent > 0 else 0,
+            },
+        })
+    return history
 
 
 @router.get("/")
@@ -148,7 +194,7 @@ async def get_email_stats(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(
             func.count(Lead.id).label("total_with_email"),
-            func.count(Lead.email_subject_a).label("generated"),
+            func.count(Lead.email_subject_a).label("generated_a"),
             func.count(Lead.email_sent_at).label("sent"),
             func.count(case((Lead.email_opened == True, 1))).label("opened"),
             func.count(case((Lead.email_clicked == True, 1))).label("clicked"),
@@ -156,6 +202,8 @@ async def get_email_stats(db: AsyncSession = Depends(get_db)):
     )
     row = result.one()
     _sent = row.sent or 0
+    # 1 lead traité = 2 versions A+B générées systématiquement
+    _generated = (row.generated_a or 0) * 2
 
     # Par segment
     seg_result = await db.execute(
@@ -168,13 +216,15 @@ async def get_email_stats(db: AsyncSession = Depends(get_db)):
 
     return {
         "total_with_email": row.total_with_email,
-        "generated": row.generated,
+        "generated": _generated,
+        "total_generated": _generated,
         "sent": row.sent,
         "opened": row.opened,
         "clicked": row.clicked,
         "open_rate":  round((row.opened  / _sent) * 100, 1) if _sent else 0,
         "click_rate": round((row.clicked / _sent) * 100, 1) if _sent else 0,
-        "pending": row.total_with_email - row.generated,
+        "pending": row.total_with_email - (row.generated_a or 0),
+        "leads_generated": row.generated_a or 0,
         "by_segment": by_segment,
     }
 
@@ -497,9 +547,12 @@ async def track_email_click(
 
 @router.delete("/reset-emails")
 async def reset_generated_emails(db: AsyncSession = Depends(get_db)):
-    """Efface tous les emails générés sur les leads (subjects, bodies, ab_version, sent flags)"""
-    from sqlalchemy import update
+    """Reset complet : emails leads + campagnes + notifications + Redis"""
+    from sqlalchemy import update, delete
     from app.models.lead import Lead as LeadModel
+    from app.models.notification import Notification
+
+    # 1. Reset tous les champs email sur les leads
     await db.execute(
         update(LeadModel).values(
             email_subject_a=None,
@@ -511,10 +564,71 @@ async def reset_generated_emails(db: AsyncSession = Depends(get_db)):
             email_sent_at=None,
             email_opened=False,
             email_opened_at=None,
+            email_clicked=False,
+            email_clicked_at=None,
+            followup_sent=False,
+            followup_sent_at=None,
         )
     )
+
+    # 2. Supprimer toutes les campagnes
+    await db.execute(delete(Campaign))
+
+    # 3. Supprimer toutes les notifications
+    await db.execute(delete(Notification))
+
     await db.commit()
-    return {"message": "Emails générés supprimés"}
+
+    # 4. Vider les clés Redis liées aux campagnes
+    try:
+        r = redis_lib.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        keys = r.keys("gen_progress:*") + r.keys("ab_winner:*") + r.keys("email_cache:*")
+        if keys:
+            r.delete(*keys)
+    except Exception:
+        pass
+
+    return {"message": f"Reset complet effectué"}
+
+
+@router.get("/{id}/progress")
+async def get_campaign_progress(id: int):
+    """Progression en temps réel de la génération d'emails (polling Redis)"""
+    try:
+        r = redis_lib.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        raw = r.get(f"gen_progress:{id}")
+        if raw:
+            return json.loads(raw)
+        return {"status": "unknown", "generated": 0, "total": 0, "sent": 0, "errors": 0}
+    except Exception:
+        return {"status": "unknown", "generated": 0, "total": 0, "sent": 0, "errors": 0}
+
+
+@router.post("/{id}/schedule")
+async def schedule_campaign(id: int, data: dict, db: AsyncSession = Depends(get_db)):
+    """Programme l'envoi d'une campagne à une date/heure précise"""
+    scheduled_str = data.get("scheduled_at")
+    if not scheduled_str:
+        raise HTTPException(status_code=400, detail="scheduled_at requis (ISO 8601)")
+    try:
+        scheduled_dt = datetime.fromisoformat(scheduled_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Format de date invalide — utilisez ISO 8601")
+
+    result = await db.execute(select(Campaign).where(Campaign.id == id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campagne non trouvée")
+
+    campaign.scheduled_at    = scheduled_dt
+    campaign.campaign_status = "scheduled"
+    campaign.status          = "scheduled"
+    await db.commit()
+    return {
+        "message":      f"Campagne programmée pour le {scheduled_dt.strftime('%d/%m/%Y à %H:%M')}",
+        "campaign_id":  id,
+        "scheduled_at": scheduled_dt.isoformat(),
+    }
 
 
 @router.get("/{id}")
@@ -533,17 +647,101 @@ async def delete_campaign(id: int, db: AsyncSession = Depends(get_db)):
     return {"message": "Campagne supprimée"}
 
 
+@router.post("/preview-one")
+async def preview_one_email(data: dict, db: AsyncSession = Depends(get_db)):
+    """Génère un email pour 1 lead sans sauvegarder — aperçu rapide avant campagne"""
+    from app.email_generator import generate_email_openrouter
+
+    segment = data.get("segment") or "Froid"
+    sector  = data.get("sector")  or None
+
+    query = select(Lead).where(Lead.email != None, Lead.email != "")
+    if segment:
+        query = query.where(Lead.segment == segment)
+    if sector:
+        query = query.where(Lead.sector == sector)
+    query = query.order_by(Lead.lead_score.desc().nullslast()).limit(1)
+
+    result = await db.execute(query)
+    lead_db = result.scalar_one_or_none()
+
+    if not lead_db:
+        raise HTTPException(status_code=404, detail="Aucun lead trouvé pour ce segment/secteur")
+
+    lead = {
+        "company":      lead_db.company      or "",
+        "sector":       lead_db.sector       or sector or "Services aux entreprises",
+        "region":       lead_db.region       or "Tunisie",
+        "company_type": lead_db.company_type or "PME",
+        "first_name":   lead_db.first_name   or "",
+    }
+
+    email = generate_email_openrouter(
+        lead=lead,
+        segment=segment,
+        version="A",
+        user_subject=data.get("subject") or None,
+        user_cta=data.get("cta")         or None,
+        user_tone=data.get("tone")       or None,
+    )
+
+    if not email:
+        raise HTTPException(status_code=500, detail="Erreur génération email")
+
+    return {
+        "company": lead_db.company,
+        "segment": segment,
+        "sector":  lead_db.sector,
+        "subject": email.get("subject"),
+        "body":    email.get("body"),
+    }
+
+
+@router.get("/stats/weekly")
+async def get_weekly_stats(db: AsyncSession = Depends(get_db)):
+    """Évolution hebdomadaire des emails envoyés / ouvertures / clics (8 semaines)"""
+    result = await db.execute(text("""
+        SELECT
+            DATE_TRUNC('week', email_sent_at)::date AS week,
+            COUNT(*) FILTER (WHERE email_sent = TRUE)    AS sent,
+            COUNT(*) FILTER (WHERE email_opened = TRUE)  AS opened,
+            COUNT(*) FILTER (WHERE email_clicked = TRUE) AS clicked
+        FROM leads
+        WHERE email_sent = TRUE
+          AND email_sent_at >= NOW() - INTERVAL '8 weeks'
+        GROUP BY DATE_TRUNC('week', email_sent_at)
+        ORDER BY week ASC
+    """))
+    rows = result.fetchall()
+
+    data = []
+    for r in rows:
+        sent    = r.sent    or 0
+        opened  = r.opened  or 0
+        clicked = r.clicked or 0
+        data.append({
+            "week":       r.week.strftime("%d/%m"),
+            "sent":       sent,
+            "opened":     opened,
+            "clicked":    clicked,
+            "open_rate":  round(opened  / sent * 100, 1) if sent > 0 else 0,
+            "click_rate": round(clicked / sent * 100, 1) if sent > 0 else 0,
+        })
+    return data
+
+
 def _run_email_generator(segment: Optional[str], limit: int, dry_run: bool,
                           user_subject: str = None, user_cta: str = None, user_tone: str = None,
                           sector: str = None, region: str = None, lead_ids: list = None,
-                          regenerate: bool = False, user_cta_link: str = None):
+                          regenerate: bool = False, user_cta_link: str = None,
+                          campaign_id: int = None):
     """Tâche de fond pour générer les emails"""
     try:
         from app.email_generator import generate_emails
         generate_emails(segment=segment, limit=limit, dry_run=dry_run,
                         user_subject=user_subject, user_cta=user_cta, user_tone=user_tone,
                         sector=sector, region=region, lead_ids=lead_ids, regenerate=regenerate,
-                        user_cta_link=user_cta_link)
+                        user_cta_link=user_cta_link, campaign_id=campaign_id)
     except Exception as e:
         logger.error(f"Email generator error: {e}")
 
@@ -591,7 +789,7 @@ async def trigger_email_generation(
 
     background_tasks.add_task(_run_email_generator, segment, limit, dry_run,
                                user_subject, user_cta, user_tone, sector, region, lead_ids, regenerate,
-                               user_cta_link)
+                               user_cta_link, campaign.id)
 
     return {
         "message": "Génération lancée en arrière-plan",

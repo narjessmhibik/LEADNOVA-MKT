@@ -199,6 +199,29 @@ async def export_leads_excel(db: AsyncSession = Depends(get_db)):
             "Date création": l.created_at.strftime("%d/%m/%Y %H:%M") if l.created_at else "",
         })
 
+    # Feuille Campagnes
+    from app.models.campaign import Campaign
+    camp_result = await db.execute(
+        select(Campaign).order_by(Campaign.created_at.desc()).limit(200)
+    )
+    campaigns = camp_result.scalars().all()
+    camp_rows = []
+    for c in campaigns:
+        camp_rows.append({
+            "ID":           c.id,
+            "Campagne":     c.campaign_name or c.name or "",
+            "Objet":        c.subject or "",
+            "Segment":      c.segment_filter or "Tous",
+            "Secteur":      c.sector_filter  or "Tous",
+            "Volume cible": c.leads_targeted or 0,
+            "Statut":       c.campaign_status or c.status or "",
+            "Ton":          c.tone or "",
+            "CTA":          c.cta  or "",
+            "Date":         c.created_at.strftime("%d/%m/%Y %H:%M") if c.created_at else "",
+            "Programmé":    c.scheduled_at.strftime("%d/%m/%Y %H:%M") if c.scheduled_at else "",
+        })
+    df_camps = pd.DataFrame(camp_rows) if camp_rows else pd.DataFrame()
+
     df = pd.DataFrame(rows)
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -207,6 +230,12 @@ async def export_leads_excel(db: AsyncSession = Depends(get_db)):
         for col in ws.columns:
             max_len = max(len(str(cell.value or "")) for cell in col)
             ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
+        if not df_camps.empty:
+            df_camps.to_excel(writer, index=False, sheet_name="Campagnes")
+            ws_c = writer.sheets["Campagnes"]
+            for col in ws_c.columns:
+                max_len = max(len(str(cell.value or "")) for cell in col)
+                ws_c.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
     buffer.seek(0)
 
     filename = f"leads_leadpilot_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"

@@ -789,7 +789,7 @@ def find_email_clearbit(company_name: str, website: str = None) -> dict:
     return {"email": None, "confidence": 0}
 
 
-# GROQ (principal)
+
 def build_prompt_arabic(company: str, sector: str, website: str) -> str:
     """Prompt dédié pour les noms d'entreprises en arabe."""
     return (
@@ -812,7 +812,7 @@ def enrich_with_groq(company: str, sector: str, city: str, website: str) -> dict
     if not GROQ_API_KEY:
         return {}
 
-    # Utiliser un prompt dédié pour les noms arabes au lieu de les ignorer
+    # Utiliser un prompt dédié pour les noms arabes 
     use_arabic_prompt = is_non_latin(company)
 
     cache_key = f"groq:{'ar:' if use_arabic_prompt else ''}{company.lower()[:50]}"
@@ -1024,7 +1024,7 @@ def enrich_leads(batch_size: int = 50, only_incomplete: bool = True, lead_ids: l
                     f"job={lead.job_title} | company={lead.company}"
                 )
 
-            # ② EMAIL
+            #  EMAIL
             if not lead.email:
                 result = {"email": None, "confidence": 0, "pattern": None}
                 if lead.website or lead.company:
@@ -1049,7 +1049,7 @@ def enrich_leads(batch_size: int = 50, only_incomplete: bool = True, lead_ids: l
                 else:
                     logger.info(" Email non trouvé")
 
-            # ③ NORMALISATION SECTEUR BRUT GOOGLE MAPS
+            #  NORMALISATION SECTEUR BRUT GOOGLE MAPS
             #    Sans API — mapping direct
             if lead.sector and lead.sector not in ALLOWED_SECTORS:
                 normalized = normalize_google_sector(lead.sector)

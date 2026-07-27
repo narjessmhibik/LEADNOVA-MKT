@@ -1,0 +1,19 @@
+[run]
+source = app
+omit =
+    app/linkedin_scraper/*
+    app/scraper.py
+    app/tasks.py
+    app/train_model.py
+    app/enrichment.py
+    app/pipeline.py
+    app/kmeans.py
+    app/email_generator.py
+    app/celery_app.py
+    app/routers/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError

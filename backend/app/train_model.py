@@ -14,29 +14,53 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 MODELS_DIR   = Path(__file__).parent / "models"
 MODELS_DIR.mkdir(exist_ok=True)
 
-# SCORES DE REFERENCE
+
 SOURCE_SCORES = {
-    "linkedin": 1.0, "startup_tunisia": 0.85,
-    "google_maps": 0.75, "tunisieindex": 0.65,
-    "manual": 0.70, "scraping": 0.65,
+    "linkedin_ceo":       1.0,   # LinkedIn avec contact CEO identifié
+    "linkedin":           1.0,   # LinkedIn professionnel
+    "startup_tunisia":    0.85,  
+    "google_maps":        0.75,  
+    "openstreetmap":      0.75,  
+    "manual":             0.70,  
+    "pages_jaunes_maroc": 0.65,  
+    "tunisieindex":       0.65,  
+    "tunidex":            0.65,  
+    "scraping":           0.65,  
 }
 
 SECTOR_SCORES = {
-    "Informatique & Tech": 1.0, "Finance & Comptabilite": 0.90,
-    "Sante": 0.85, "Juridique": 0.85,
-    "Marketing & Communication": 0.80, "Services aux entreprises": 0.75,
-    "Immobilier": 0.75, "Construction & BTP": 0.70,
-    "Transport & Logistique": 0.70, "Education & Formation": 0.65,
-    "Commerce & Distribution": 0.65, "Industrie & Production": 0.65,
-    "Agriculture & Alimentaire": 0.60, "Energie & Environnement": 0.60,
-    "Restauration & Hotellerie": 0.55,
+    
+    "Culture & Musées":           1.0,
+    "Culture & Patrimoine":       1.0,
+    "Education & Formation":      1.0,
+    "Informatique & Tech":        1.0,
+    "Finance & Comptabilité":     0.90,
+    "Finance & Comptabilite":     0.90,  # variante sans accent 
+    "Santé":                      0.85,
+    "Sante":                      0.85,  # variante sans accent 
+    "Juridique":                  0.85,
+    "Sécurité":                   0.85,
+    "Marketing & Communication":  0.80,
+    "Management & Conseil":       0.80,
+    "Services aux entreprises":   0.75,
+    "Architecture & Urbanisme":   0.75,
+    "Immobilier":                 0.75,
+    "Construction & BTP":         0.70,
+    "Transport & Logistique":     0.70,
+    "Logistique & Transport":     0.70,
+    "Commerce & Distribution":    0.65,
+    "Industrie & Production":     0.65,
+    "Agriculture & Alimentaire":  0.60,
+    "Energie & Environnement":    0.60,
+    "Tourisme & Loisirs":         0.55,
+    "Tourisme & Voyages":         0.55,
+    "Mode & Accessoires":         0.55,
+    "Restauration & Hôtellerie":  0.55,
+    "Restauration & Hotellerie":  0.55, 
 }
 
-# Scores selon type entreprise (critere societe)
-# Startup = cible ideale pour un SaaS B2B
-# PME = coeur de cible
-# Grande entreprise = cycle de vente long
-# Independant = budget limite
+# Scores selon type entreprise 
+
 COMPANY_TYPE_SCORES = {
     "Startup":           1.0,
     "PME":               0.85,
@@ -77,10 +101,9 @@ def get_company_type_score(company_type):
     return 0.60
 
 
-# FEATURES — ce que XGBoost voit
-# Inclut maintenant company_type_score (critere societe)
+# FEATURES 
 FEATURE_COLUMNS = [
-    # Contact (brutes)
+    # Contact 
     "has_email",
     "has_phone",
     "has_website",
@@ -93,32 +116,18 @@ FEATURE_COLUMNS = [
     "has_sector",
     "sector_score",
     "has_description",
-    # Type entreprise (critere societe) — NOUVEAU
+    # Type entreprise
     "company_type_score",
 ]
 
 
 # LABEL — score commercial 0-100
-# Criteres demandes par la societe :
-#   Secteur d activite sector_score dans label
-#   Type entreprise company_type_score dans label
-#   Presence digitale has_website dans features
-#   Coordonnees disponibles has_email/phone dans features
-#   Niveau d activite reviews dans label
-#   Localisation has_region dans features
-# SEPARATION label/features :
-#   Label utilise  : source, reviews, sector_score, company_type_score
-#   Features       : has_email, has_phone, has_website, has_address,
-#                    email_quality, email_confidence, has_sector,
-#                    sector_score, has_description, company_type_score
-# Note : sector_score et company_type_score sont dans les deux
-# mais reviews reste absent des features -> vrai apprentissage ML
+# Criteres demandes par la societe 
+
 def generate_score_target(df):
     """
     Score commercial 0-100 selon criteres societe.
-
     Source(20) + Reviews(25) + Secteur(25) + CompanyType(20) + Completude contact(10) = 100
-
     Criteres societe couverts :
     - Secteur d activite        -> sector_score (25 pts)
     - Type entreprise           -> company_type_score (20 pts)
@@ -128,26 +137,24 @@ def generate_score_target(df):
     - Localisation              -> dans features (has_region)
     """
     scores = pd.Series(0.0, index=df.index)
-
-    # 1. Source (20 pts) — credibilite de la source
+    # 1. Source (20 pts)
     scores += df["source"].apply(get_source_score) * 20
-
-    # 2. Reviews Google (25 pts) — seule variable absente des features
+    # 2. Reviews Google (25 pts) 
     has_reviews = df["reviews_count"].notna() & (df["reviews_count"] > 0)
     reviews = df["reviews_count"].fillna(0).clip(0, 200) / 200
     avg     = df["reviews_average"].fillna(0) / 5
     scores += has_reviews * (reviews * 12.5 + avg * 12.5)
 
-    # 3. Secteur d activite (25 pts) — critere societe
+    # 3. Secteur d activite (25 pts) 
     sector_pts = df["sector"].apply(
         lambda s: get_sector_score(s) if pd.notna(s) else 0.50
     )
     scores += sector_pts * 25
 
-    # 4. Type entreprise (20 pts) — critere societe
+    # 4. Type entreprise (20 pts) 
     scores += df["company_type"].apply(get_company_type_score) * 20
 
-    # 5. Completude contact (10 pts) — joignabilite basique
+    # 5. Completude contact (10 pts) 
     completeness = (
         df["email"].notna().astype(int) +
         df["phone"].notna().astype(int)
@@ -156,6 +163,7 @@ def generate_score_target(df):
 
     return scores.clip(0, 100).round(2)
 
+#extraction des X des leads 
 
 def extract_features(df):
     feat = pd.DataFrame(index=df.index)
@@ -180,7 +188,7 @@ def extract_features(df):
 
 
 def train():
-    print("\n LeadPilot - Entrainement XGBoost (criteres societe integres)")
+    print("\n LeadPilot - Entrainement XGBoost ")
     print("=" * 65)
     print("\n Label = Source(20) + Reviews(25) + Secteur(25) + CompanyType(20) + Contact(10)")
     print(" Criteres societe : secteur, type entreprise, activite, coordonnees\n")
@@ -202,12 +210,12 @@ def train():
     print(f"   Total leads    : {total}")
     print(f"   Leads enrichis : {enriched} ({enriched/total*100:.1f}%)")
 
-    print(f"\n   Repartition par source :")
+    print(f"\n   Repartition par source ")
     for src, grp in df.groupby("source"):
         has_rev = (grp["reviews_count"].notna() & (grp["reviews_count"] > 0)).sum()
         print(f"      {str(src):<22} : {len(grp):>5} leads | {has_rev:>4} avec reviews")
 
-    print(f"\n   Repartition par company_type :")
+    print(f"\n   Repartition par company_type ")
     ct_counts = df["company_type"].fillna("NULL").value_counts()
     for ct, cnt in ct_counts.items():
         score = get_company_type_score(ct if ct != "NULL" else None)
@@ -216,14 +224,14 @@ def train():
     if total < 50:
         print("   Pas assez de donnees"); sys.exit(1)
 
-    print("\n Calcul des labels (criteres societe)...")
+    print("\n Calcul des labels ")
     y = generate_score_target(df)
 
     print(f"   Score moyen  : {y.mean():.1f}")
     print(f"   Score median : {y.median():.1f}")
     print(f"   Score min    : {y.min():.1f}")
     print(f"   Score max    : {y.max():.1f}")
-    print(f"\n   Distribution :")
+    print(f"\n   Distribution ")
     print(f"      Froid (<33)  : {(y<33).sum():>5} ({(y<33).mean()*100:.1f}%)")
     print(f"      Tiede (33-66): {((y>=33)&(y<66)).sum():>5} ({((y>=33)&(y<66)).mean()*100:.1f}%)")
     print(f"      Chaud (>66)  : {(y>=66).sum():>5} ({(y>=66).mean()*100:.1f}%)")
@@ -240,7 +248,7 @@ def train():
     )
     print(f"   Split : {len(X_train)} train / {len(X_test)} test")
 
-    print("\n Entrainement XGBoost...")
+    print("\n Entrainement ")
     model = xgb.XGBRegressor(
         n_estimators=300, max_depth=5, learning_rate=0.05,
         subsample=0.8, colsample_bytree=0.8, min_child_weight=10,
@@ -260,13 +268,13 @@ def train():
     print(f"   CV par fold    : {[round(s,3) for s in cv]}")
 
     if r2 > 0.95:
-        print("   ATTENTION : R2 trop eleve")
+        print("   R2 trop eleve")
     elif r2 > 0.5:
-        print("   EXCELLENT : modele bien calibre")
+        print("    modele bien calibre")
     elif r2 > 0.3:
-        print("   OK : R2 acceptable")
+        print("   R2 acceptable")
     else:
-        print("   R2 faible — normal avec donnees heterogenes")
+        print("   R2 faible")
 
     print("\n Importance des features :")
     enrichies = ["email_confidence", "has_sector", "sector_score",

@@ -188,6 +188,22 @@ async def create_linkedin_session(data: dict):
         raise HTTPException(status_code=500, detail=f"Erreur connexion LinkedIn: {str(e)}")
 
 
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: int, db: AsyncSession = Depends(get_db)):
+    """Annule un job de scraping en cours"""
+    result = await db.execute(select(ScrapingJob).where(ScrapingJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job introuvable")
+    if job.status in ("termine", "annule", "erreur"):
+        return job
+    job.status      = "annule"
+    job.finished_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(job)
+    return job
+
+
 @router.delete("/jobs/{job_id}")
 async def delete_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Supprime un job"""
